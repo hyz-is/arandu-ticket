@@ -86,12 +86,12 @@ func TestEveryActionIsNamedInAReleasedChangelogEntry(t *testing.T) {
 // so a version that shipped one and did not say so is a version that fails at
 // the first request against a column that is not there.
 func TestEveryMigrationIsNamedInAReleasedChangelogEntry(t *testing.T) {
-	module := readReleaseFile(t, packageRoot(t), "module.go")
+	module := readReleaseFile(t, packageRoot(t), "migrations.go")
 	released := releasedChangelog(t)
 
 	ids := regexp.MustCompile(`"([0-9]{8}_[0-9]{4}_[a-z_]+)"`).FindAllStringSubmatch(module, -1)
 	if len(ids) == 0 {
-		t.Fatal("module.go declares no migrations")
+		t.Fatal("migrations.go declares no migrations")
 	}
 	seen := map[string]bool{}
 	for _, id := range ids {
@@ -142,19 +142,6 @@ func TestEveryChangelogVersionHasUpgradeNotes(t *testing.T) {
 		}
 	}
 }
-
-// The section markers, spelled in halves.
-//
-// configure removes whole lines from the first marker to the second in every
-// file it reads, this one included. A test naming them in full would be a test
-// configure deleted the middle of, and that is not a thought experiment: it
-// happened on the first run, and the clone failed to build with
-// "undefined: start".
-const (
-	markerHalf = "configure:template"
-	openMarker = markerHalf + "-start"
-	shutMarker = markerHalf + "-end"
-)
 
 func TestCIGuardsIncompatibleAPIChanges(t *testing.T) {
 	ci := readReleaseFile(t, packageRoot(t), ".github/workflows/ci.yml")

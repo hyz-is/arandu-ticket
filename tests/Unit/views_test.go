@@ -44,7 +44,7 @@ func module(t *testing.T) *ticket.Module {
 	t.Helper()
 
 	sessions := security.NewSessionStore([]byte(sessionKey), time.Hour, false, security.NewMemoryBackend())
-	m, err := ticket.New(ticket.Config{}, data.Wrap(nil, data.DialectSQLite), sessions)
+	m, err := ticket.New(ticket.Config{TeamTenant: "platform"}, data.Wrap(nil, data.DialectSQLite), sessions)
 	if err != nil {
 		t.Fatalf("building the module: %v", err)
 	}

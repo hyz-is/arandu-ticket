@@ -1,190 +1,110 @@
 ---
 name: ticket-policy
-description: Decide who may do what in this Arandu package, and open an action that is currently closed. Use when the request is to "open the policy", "let admins read this", "allow the owner to edit", "add an action", "add a permission", "everything returns 403", "the tests say ErrForbidden", "add a Model-backed service method", "why does Find authorize twice", "filter the listing by owner", or when a change touches policy.go or service.go. Covers the Grant, authorization before the Model, the custom block that survives regeneration, why the tenant is never read from the request, and the three shapes that look like authorization and are not.
+description: Decide who may do what in this Arandu package, and change an action. Use when the request is to "add an action", "add a permission", "let the owner close tickets", "everything returns 403", "the tests say ErrForbidden", "add a Model-backed service method", "why does Find authorize twice", "filter the list by requester", "let the team do X", "a system grant", or when a change touches policy.go, service.go, team.go, contact.go or grants.go. Covers the two policies, the Grant, authorization before the Model, the custom block that survives regeneration, why the tenant is never read from the request, the three Grants issued without a customer, and the shapes that look like authorization and are not.
 license: MIT
 ---
 
-# Opening the policy
+# The policies
 
-The package ships denying every action, and that is the state to start from
-rather than a placeholder to delete. There is no permit-all branch to remove,
-and adding one is the single change that would make every application installing
-this package unsafe while looking like working code.
+There are two, and they answer for different people.
+
+- `TicketPolicy` is the customer's. It allows an action to a subject that was
+  granted it (`s.Can(action)`, filled by arandu-permission), on a ticket of the
+  subject's own tenant, and for the actions about a stored ticket only when the
+  subject asked for it or holds `ticket.view_space`.
+- `TeamPolicy` is the platform team's. It allows an action to a subject of
+  `Config.TeamTenant` that was granted it, and refuses a guest and a subject
+  somebody else is viewing as. It is the one policy that does not compare the
+  record's tenant with the subject's: crossing tenants is what the team does.
+
+Neither has a branch that allows an action by role. A subject that holds no
+action, an administrator included, is refused everything; the default-deny test
+walks every action with one.
 
 ## How a request actually gets through
 
-Four things happen, in this order, and each one is a different file.
-
-1. `service.go` validates the input. A rejected input never reaches a policy.
-2. `service.go` calls `security.Authorize(ctx, s.policy, actor, ACTION, record)`.
-3. `policy.go` `Can` returns nil, or the reason it will not.
-4. Only then does a `security.Grant` exist, and `service.go` reaches
-   `Tickets(s.db)` and a Model terminal with it.
-
-The Grant is the mechanism, and it is worth knowing exactly how much it
-guarantees. `Authorize` is the only function in the framework that returns a
-valid one; `Grant`'s fields are unexported, so a handler cannot assemble one.
-What it does *not* stop is `security.SystemGrant`, which is exported and issues
-a Grant with no policy involved. That is for work with no request behind it — a
-job, a scheduled task — and in an application's own code `aru doctor` reports it
-as `system-grant-outside-scope` when it appears in a handler, and
-`system-grant-without-tenant` when it is called with an empty tenant. A lint,
-not the type system, and one that never runs over an installed package. Nothing
-here reports it either. Do not reach for it in this package.
+1. The service validates the input. A rejected input never reaches a policy
+   (the customer's side; the team's `reach` runs first because it also finds the
+   ticket).
+2. The service calls `security.Authorize(ctx, s.policy, actor, ACTION, record)`.
+3. `Can` returns nil, or the reason it will not.
+4. Only then does a `security.Grant` exist, and the service reaches
+   `Tickets(s.db)` with it.
 
 The Model requires a Grant and applies its tenant, but it does not decide which
-Policy action that Grant represents. `security.Authorize` before the first
-`Tickets(s.db)` call is therefore mandatory even though the terminal itself
-also takes `g`.
+action the Grant represents, so `Authorize` before the first `Tickets(s.db)` is
+mandatory even though the terminal also takes `g`.
 
-## The procedure
+## The procedure for an action
 
-**1. Write the rule inside the custom block.**
+**1. Declare it** in `policy.go` with a doc comment, and put it in `Actions()`
+or `TeamActions()`, never both. Say in `reads` whether it only looks: an action
+not listed there issues a Grant that writes.
 
-`policy.go` has one:
+**2. Write the rule inside the custom block.** Nothing regenerates the file in
+this repository, so the markers cost nothing and buy one thing: the same policy
+regenerated elsewhere keeps what is between them. What is not written there
+stays closed.
 
-```go
-	// arandu:begin custom
-	if a == TicketView && (s.ID == record.ID || s.HasRole("admin")) {
-		return nil
-	}
-	// arandu:end custom
-```
+**3. Leave the tenant check above the block alone.** It runs before every rule:
+a rule that allows an owner to read their own record would otherwise allow it
+across customers. The test asserts the message contains `another tenant`.
 
-Nothing regenerates this file in this repository, so here the markers cost
-nothing and buy one thing: the same policy regenerated inside an application
-keeps what is between them. `aru make:module --force` says so itself —
-*"whatever sits between the arandu:begin custom markers is preserved"* — and a
-rule written outside the pair is the rule that disappears.
+**4. Add it to the tests.** `everyAction` in `tests/Unit/policy_test.go` is the
+whole set the default-deny tests walk; a list holding eight of nine passes while
+the ninth is open. Add the rule's cases to the table beside it, and name the
+action in the changelog (`TestEveryActionIsNamedInAReleasedChangelogEntry`).
 
-What is not written inside the block stays closed, including every action added
-later. The function ends in a refusal and there is no other exit.
+## Reads are authorized like writes
 
-**2. Say something about guests, or do not.** The routes of this package sit
-behind `RequireAuth`, so a visitor with no session is sent to the sign-in screen
-and never reaches the policy. A guest arrives only when an application calls the
-service with `security.Guest(tenant)` from a public route of its own: the only
-subject that arrives with an empty `ID` and is still authorized at all. The zero
-`Subject` — an empty `ID` with no guest marker — is refused by `Authorize`
-before `Can` is consulted, because it is almost always a session that failed to
-load, and a policy asked about nobody answers about nobody.
-`TestAuthorizeRefusesASubjectThatIsNobody` at `tests/Unit/policy_test.go:94`
-holds that apart from the guest case, and `TestThePolicyDeniesAGuest:82` proves
-a guest is refused until somebody writes a rule for one.
+`Find` authorizes twice: the first call sees an empty ticket, so every rule about
+the record never ran; the second, on the row, is the one that keeps the policy
+honest. A ticket the second call refuses is answered `ErrNotFound`, as one of
+another space is: telling a customer that a ticket exists and is not theirs
+tells them what exists. `List` authorizes once and narrows the statement by a
+predicate (`requester_id`), because a policy call per row would still read the
+rows.
 
-**3. Leave the tenant check above the block alone.**
+## The team crosses tenants in two steps
 
-```go
-	if record.ID != "" && record.TenantID != s.Tenant {
-		return fmt.Errorf("ticket belongs to another tenant")
-	}
-```
+`TeamService.reach` asks `TeamPolicy` for a realm Grant, finds the ticket's
+tenant through `internal/platform` (the tickets table with no tenant filter),
+and then acts with a Grant scoped to that one tenant. The scoped Grant is issued
+by `scopedGrant` in `grants.go`, which checks the realm Grant was issued for the
+same action. Nothing a request names chooses the tenant.
 
-It runs before every rule, and it is the one refusal that has to survive
-somebody opening the actions below it: a rule allowing an owner to read their
-own record allows it across customers as soon as two customers have a record
-with the same identifier. `TestThePolicyDeniesARecordOfAnotherTenant:65` asserts
-the message contains `another tenant`, so the sentence is part of the contract.
-The empty `ID` is exempt because it is the candidate that has not been stored
-yet, and it belongs to nobody until it is written with the tenant off the Grant.
+## The Grants issued without a customer
 
-**4. Add the action to the test list if you added an action.** `everyAction` at
-`tests/Unit/policy_test.go:34` is the whole set the default-deny tests walk. A
-list holding four of five passes while the fifth is open, which is the only
-state in which any of this matters.
+`grants.go` is the only file that builds a Grant without a Policy answering for
+it, and `TestAGrantWithoutACustomerIsIssuedInGrantsGoAlone` holds that to three,
+each marked `//arandu:system-grant` with the reason:
 
-**5. Run the gates.**
+- `contactGrant`, after the application's `AccountResolver` named the account;
+- `scopedGrant`, after `TeamPolicy` allowed the member;
+- `recordGrant`, for the entry that says a file was read.
+
+A fourth is a decision to take in review, not a line to find in a diff. Do not
+reach for `security.SystemGrant` anywhere else in this package.
+
+## Shapes that look like authorization and are not
+
+- **A tenant taken from the request.** The path, the body, the query string, a
+  header: values the caller chose. `data.Tenant(g)` is the only source, and
+  `TestNoTenantIsReadOutOfTheRequest` fails on the others. The team's `space`
+  filter is a predicate for someone who already reads every tenant, never a
+  scope.
+- **A check in the handler.** Handlers read the input and who is asking, ask the
+  service, and return what it returned. `TestHandlersLeaveTheSubjectAndTheStatusToTheFramework`
+  fails on one that holds the database or constructs a query.
+- **A refusal that explains itself to the client.** The router answers with the
+  status and its standard sentence; the reason is in the log.
+- **A button hidden by `auth.Allows`.** It decides what to draw, never whether to
+  do it; the route behind the button asks the policy again.
+
+## Run the gates
 
 ```sh
 export GOWORK=off
 gofmt -l $(find . -name '*.go' -not -path '*/testdata/*' -not -name '*.kyse.go') \
-  && go build ./... && go vet ./... && go test -race ./...
+  && go build ./... && go vet ./... && go test -race -p 2 ./...
 ```
-
-The default-deny tests will now fail for the action you opened, and that is the
-suite doing its job. Change them to assert the rule you wrote — which subject is
-allowed, which is still refused — rather than removing the action from
-`everyAction`.
-
-## Adding a Model-backed service method
-
-`TicketService` owns `db *data.DB`. Validate first, build the value the Policy
-must see, call `security.Authorize`, and only then call `Tickets(s.db)`.
-`TestEveryServiceMethodAuthorizesBeforeTheModel` reads every exported Service
-method and refuses the opposite order; the runtime twin uses a nil database so
-even constructing the query early fails.
-
-Create builds the row with `Tickets(s.db).New()`, keeps its pointer, fills it
-field by field, writes `TenantID` from `data.Tenant(g)`, and calls
-`Save(ctx, g)`. Find and Get return pointers too. A copy of a row keeps the model
-of the original, and the model refuses to write through it with
-`model.ErrUnwired`; assigning a whole struct over a row from `New()` does the
-same to the row.
-
-Every query starts at `Tickets(s.db)`. The constructor returns one mutable
-query, so a second chain begun from a value held in a variable carries the
-clauses of the first.
-
-The method orchestrates and holds no rule the entity could hold. A rule about
-the record itself — whether it may be renamed, what a transition changes — is a
-pure method in the custom block of `model.go`, and the Service calls it between
-`Authorize` and `Save`. A fact of the record that the policy decides on, such as
-who owns it, can be such a method too, and the policy calls it; the decision
-stays in `Can`.
-
-A refusal the Service returns travels back untouched: the handler returns it,
-and the router answers `security.ErrForbidden` with 403 and `ErrNotFound` with
-404.
-
-CRUD does not get a Repository beside this path. A Repository is an optional
-specialization for a genuinely complex query, read model, report, export or raw
-SQL contract; it remains below the Service and does not wrap the Model's common
-Find, Get, Save or Delete terminals.
-
-## Reads are authorized like writes
-
-There is no listing that skips the policy, and no read model, projection,
-report or export that does. A read path with no check is a leak between
-customers with a technical name.
-
-`Find` in `service.go` calls `Authorize` twice, and the second call is the one
-people delete:
-
-```go
-	g, err := security.Authorize(ctx, s.policy, actor, TicketView, Ticket{})
-	record, err := Tickets(s.db).WhereKey(id).First(ctx, g)
-	_, err = security.Authorize(ctx, s.policy, actor, TicketView, *record)
-```
-
-The first call sees an empty value, so every rule about the record itself —
-who owns the row, whether it is published — never ran. Without the second call a
-policy can be written that looks correct, reads correctly, and is never
-consulted about the thing it protects. The read is already scoped by
-`data.Tenant(g)`, so the second call is not what keeps customers apart; it is
-what keeps the policy honest.
-
-`List` authorizes once, on the empty candidate, and does not authorize per row.
-A policy call per record would be one call per row of a page and would still not
-narrow the query — a listing that has to read a customer's rows in order to
-decide it may not read them has already read them. **A rule that hides
-individual records from a listing belongs in the query, as a predicate**,
-beside the tenant filter — a scope on `*TicketQuery` when more than one use
-case needs it. The action decides whether the listing runs at all.
-
-## Three shapes that look like authorization and are not
-
-- **A tenant taken from the request.** The path, the body, the query string, a
-  header — all of them are values the caller chose. `data.Tenant(g)` is the only
-  source, and `TestNoTenantIsReadOutOfTheRequest` is what fails on the others
-  here; in an application's own code they are `aru doctor`'s
-  `tenant-from-request` and `tenant-from-header`. There is no other place: the
-  routes need a session, and `Config` carries no tenant.
-- **A check in the handler.** `module.go` handlers read the input and who is
-  asking, ask the service and return what it returned. A handler that held the
-  database or started a query would skip the policy boundary, and nothing in the
-  type system would object.
-- **A refusal that explains itself to the client.** The router answers a
-  refusal with the status and its standard sentence, never with the error's
-  text. Telling the client why a policy said no is telling them what exists and
-  what does not, one request at a time. The reason is in the log, where the
-  person operating the system reads it and the person probing it does not.

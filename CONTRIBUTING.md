@@ -25,7 +25,7 @@ edited by hand.
 
 ## What a change has to keep true
 
-Four properties are the reason this package is what it is. A change that breaks
+Five properties are the reason this package is what it is. A change that breaks
 one of them will not be merged, whatever else it improves.
 
 1. **The policy denies by default.** No branch allows every action, and none is
@@ -37,6 +37,8 @@ one of them will not be merged, whatever else it improves.
    query string or a header, on any code path, including the read paths.
 4. **`arandu.mod.toml` matches the code.** Adding an outbound call, a file
    write or a process means declaring it there in the same commit.
+5. **A Grant without a signed-in customer is built in `grants.go` alone**, and a
+   customer never reads an internal note or the team's triage.
 
 CRUD stays on `Tickets(db)` and its generated query. Add a Repository only for
 a specialized complex query, read model, report, export or raw SQL contract; a

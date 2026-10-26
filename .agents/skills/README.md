@@ -24,7 +24,7 @@ names the situation you are in rather than the topic it covers.
 The last one has a different audience from the other three, and that is on
 purpose: it travels with the package so that an assistant working in somebody
 else's project — the one running `go get` — has the wiring, the migration step
-and the closed policy in front of it instead of guessing.
+and the actions to grant in front of it instead of guessing.
 
 Its frontmatter says so, under `metadata`, with `audience: app`. That line is
 what `aru skills:sync` reads to copy the skill into an application whose

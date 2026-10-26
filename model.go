@@ -1,20 +1,179 @@
 package ticket
 
 import (
+	"database/sql/driver"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/arandu-io/hesape/database/model"
+
+	"github.com/hyz-is/arandu-ticket/internal/platform"
 )
 
-// Ticket is the entity this package owns.
+// The table names, declared once: the migrations and the models read them from
+// here, so a rename is one edit.
+const (
+	ticketsTable     = "tickets"
+	messagesTable    = "ticket_messages"
+	attachmentsTable = "ticket_attachments"
+	countersTable    = "ticket_counters"
+)
+
+// Column widths, declared once for the migrations and the validation, so a
+// value the form accepts is a value the column holds.
+const (
+	maxIdentifierLen = 64
+	maxSubjectLen    = 160
+	maxCategoryLen   = 60
+	maxNameLen       = 160
+	maxEmailLen      = 254
+	maxFileNameLen   = 120
+	maxHashLen       = 64
+	maxKeyLen        = 255
+)
+
+// Status is where a ticket stands.
+type Status string
+
+// The statuses of a ticket.
+const (
+	// StatusOpen is a ticket nobody on the team has answered yet.
+	StatusOpen Status = "open"
+	// StatusWaitingCustomer is a ticket the team answered and the customer owes
+	// a reply to.
+	StatusWaitingCustomer Status = "waiting_customer"
+	// StatusWaitingTeam is a ticket the customer answered and the team owes a
+	// reply to.
+	StatusWaitingTeam Status = "waiting_team"
+	// StatusResolved is a ticket the team considers answered. A reply from the
+	// customer brings it back.
+	StatusResolved Status = "resolved"
+	// StatusClosed is a ticket nobody replies to any more, until it is
+	// reopened.
+	StatusClosed Status = "closed"
+)
+
+// Statuses are every status, in the order the screens list them.
+var Statuses = []Status{StatusOpen, StatusWaitingCustomer, StatusWaitingTeam, StatusResolved, StatusClosed}
+
+// Valid reports whether the status is one of the five.
+func (s Status) Valid() bool {
+	for _, known := range Statuses {
+		if s == known {
+			return true
+		}
+	}
+	return false
+}
+
+// Priority is how soon the team looks at a ticket.
+type Priority string
+
+// The priorities of a ticket.
+const (
+	PriorityLow    Priority = "low"
+	PriorityNormal Priority = "normal"
+	PriorityHigh   Priority = "high"
+	PriorityUrgent Priority = "urgent"
+)
+
+// Priorities are every priority, lowest first.
+var Priorities = []Priority{PriorityLow, PriorityNormal, PriorityHigh, PriorityUrgent}
+
+// Valid reports whether the priority is one of the four.
+func (p Priority) Valid() bool {
+	for _, known := range Priorities {
+		if p == known {
+			return true
+		}
+	}
+	return false
+}
+
+// Origin is where a ticket came from.
+type Origin string
+
+// The origins of a ticket.
+const (
+	// OriginWeb is a ticket the customer opened on the screens of this package.
+	OriginWeb Origin = "web"
+	// OriginContactForm is a ticket OpenFromContact opened from the
+	// application's public contact form.
+	OriginContactForm Origin = "contact_form"
+	// OriginEmail is a ticket the application opened from an incoming e-mail.
+	OriginEmail Origin = "email"
+)
+
+// Valid reports whether the origin is one of the three.
+func (o Origin) Valid() bool { return o == OriginWeb || o == OriginContactForm || o == OriginEmail }
+
+// Role is what an author of a message is to the ticket.
+type Role string
+
+// The roles of a message's author.
+const (
+	// RoleCustomer is the person the ticket belongs to.
+	RoleCustomer Role = "customer"
+	// RoleTeam is a member of the platform team.
+	RoleTeam Role = "team"
+	// RoleSystem is the package itself, for a line nobody wrote.
+	RoleSystem Role = "system"
+)
+
+// Flag is a yes-or-no a column holds as an integer, read back from whatever an
+// engine answers with: the engines disagree about booleans and one place has
+// to flatten them.
+type Flag bool
+
+// Value writes the flag as the integer the column holds.
+func (f Flag) Value() (driver.Value, error) {
+	if f {
+		return int64(1), nil
+	}
+	return int64(0), nil
+}
+
+// Scan reads the flag back. Anything it cannot read is refused rather than
+// read as false.
+func (f *Flag) Scan(value any) error {
+	switch v := value.(type) {
+	case nil:
+		*f = false
+	case bool:
+		*f = Flag(v)
+	case int64:
+		*f = v != 0
+	case int32:
+		*f = v != 0
+	case int:
+		*f = v != 0
+	case float64:
+		*f = v != 0
+	case []byte:
+		return f.Scan(string(v))
+	case string:
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			return fmt.Errorf("ticket: %q is not a yes-or-no", v)
+		}
+		*f = Flag(b)
+	default:
+		return fmt.Errorf("ticket: cannot read %T as a yes-or-no", value)
+	}
+	return nil
+}
+
+// Ticket is one request for support: a conversation between a customer of a
+// tenant and the platform team.
 //
 // It embeds the model, so a row returned by a query carries the connection and
-// can be saved again. Build a new row with Tickets(db).New(): a struct
-// literal has no connection and its write methods return model.ErrUnwired.
+// can be saved again. Build a new row with Tickets(db).New(): a struct literal
+// has no connection and its write methods return model.ErrUnwired.
 //
-// Tickets, TicketQuery and TicketCollection are generated beside this
-// file, in TicketQuery.go, by aru model:build.
+// Tickets, TicketQuery and TicketCollection are generated beside this file, in
+// TicketQuery.go, by aru model:build.
 type Ticket struct {
 	model.Model
 
@@ -23,16 +182,62 @@ type Ticket struct {
 	// differently in every engine.
 	ID string `db:"id"`
 
-	// TenantID is the customer the row belongs to. It is written from the
-	// Grant and read back so the policy can compare it against the subject's
-	// tenant.
+	// TenantID is the space the ticket belongs to. It is written from the Grant
+	// and read back so the policy can compare it against the subject's tenant.
 	TenantID string `db:"tenant_id"`
 
-	// Name is what a person calls this record.
-	Name string `db:"name"`
+	// Number is the ticket's sequence in its tenant, from one. People say it as
+	// Code: "#000123".
+	Number int64 `db:"number"`
+
+	// Subject is the one line the customer gave the request.
+	Subject string `db:"subject"`
+
+	// Status is where the ticket stands.
+	Status Status `db:"status"`
+
+	// Priority is how soon the team looks at it. Only the team changes it.
+	Priority Priority `db:"priority"`
+
+	// Category is a short free text, or empty.
+	Category string `db:"category"`
+
+	// RequesterID is the user of the tenant who asked. The application owns
+	// what a user is; this package only compares the identifier with the
+	// subject's.
+	RequesterID string `db:"requester_id"`
+
+	// RequesterName and RequesterEmail are who the requester was when the
+	// ticket was opened, as the application's Directory or AccountResolver
+	// answered. They are a copy: the team searches by them and reads them
+	// without asking the application again.
+	RequesterName  string `db:"requester_name"`
+	RequesterEmail string `db:"requester_email"`
+
+	// AssigneeID is the team member answering, or empty. The team lives in the
+	// platform's own tenant, so the identifier is a user of that tenant and the
+	// name is a copy of how the team knew them when they took the ticket.
+	AssigneeID   string `db:"assignee_id"`
+	AssigneeName string `db:"assignee_name"`
+
+	// Origin is where the ticket came from.
+	Origin Origin `db:"origin"`
+
+	// OriginKey identifies a ticket opened from a contact form by what it said,
+	// so the same form sent twice opens it once. Empty for every other origin.
+	OriginKey string `db:"origin_key"`
+
+	// LastMessageAt is when the last message the customer can read was written.
+	LastMessageAt time.Time `db:"last_message_at"`
 
 	// CreatedAt is when the row was written, in UTC.
 	CreatedAt time.Time `db:"created_at"`
+
+	// UpdatedAt is when the row last changed, in UTC.
+	UpdatedAt time.Time `db:"updated_at"`
+
+	// ClosedAt is when the ticket was closed, nil while it is not.
+	ClosedAt *time.Time `db:"closed_at"`
 }
 
 // ticketTable is the table Ticket is a row of, declared once. Its query,
@@ -42,32 +247,143 @@ type Ticket struct {
 // database neither increments it nor fills it. The tenant scope is left at its
 // tenant_id default.
 var ticketTable = model.NewTable(model.TableSpec{
-	Name:      "tickets",
-	New:       func() model.Entity { return new(Ticket) },
-	ManualKey: true,
+	Name:         ticketsTable,
+	New:          func() model.Entity { return new(Ticket) },
+	ManualKey:    true,
+	NoTimestamps: true,
 })
 
 // arandu:begin custom
-// The rules of the entity itself go here: invariants, derived values and
-// transitions that change only the fields of this row, such as a CanX() bool
-// beside the X(...) error it guards. They are pure -- no database, no network,
-// no clock they read for themselves, no Grant -- so the time a transition
-// stamps arrives as a parameter. Orchestration stays in the service: it
-// validates the request, asks the policy, calls these rules and saves with the
-// Grant. A local scope is a method on *TicketQuery in this block, and a
-// relation is registered on ticketTable from an init function.
-//
-//	// CanRename reports whether the record may take this name.
-//	func (s Ticket) CanRename(name string) bool { return name != "" && name != s.Name }
-//
-//	// Rename gives the record a new name, and refuses one it cannot take.
-//	func (s *Ticket) Rename(name string) error {
-//		if !s.CanRename(name) {
-//			return fmt.Errorf("ticket: %q cannot be the new name of this record", name)
-//		}
-//		s.Name = name
-//		return nil
-//	}
+
+// Code is the number as people say it: "#000123".
+func (t Ticket) Code() string { return code(t.Number) }
+
+// code writes a ticket number the way it is said and printed.
+func code(number int64) string { return fmt.Sprintf("#%06d", number) }
+
+// IsClosed reports whether nobody replies to the ticket any more.
+func (t Ticket) IsClosed() bool { return t.Status == StatusClosed }
+
+// CanReply reports whether a message can still be added: a closed ticket is
+// reopened first.
+func (t Ticket) CanReply() bool { return t.Status.Valid() && t.Status != StatusClosed }
+
+// CanClose reports whether the ticket can be closed.
+func (t Ticket) CanClose() bool { return t.Status.Valid() && t.Status != StatusClosed }
+
+// CanReopen reports whether the ticket can be reopened: it is resolved or
+// closed.
+func (t Ticket) CanReopen() bool { return t.Status == StatusResolved || t.Status == StatusClosed }
+
+// ReceiveCustomerReply moves the ticket the way a reply from the customer
+// does: a ticket nobody has answered stays open, any other becomes the team's
+// to answer. A closed ticket refuses it.
+func (t *Ticket) ReceiveCustomerReply(now time.Time) error {
+	if !t.CanReply() {
+		return fmt.Errorf("ticket: %s is %s and takes no reply", t.Code(), t.Status)
+	}
+	if t.Status != StatusOpen {
+		t.Status = StatusWaitingTeam
+	}
+	t.touch(now, true)
+	return nil
+}
+
+// ReceiveTeamReply moves the ticket the way an answer from the team does: it
+// becomes the customer's to answer. A closed ticket refuses it.
+func (t *Ticket) ReceiveTeamReply(now time.Time) error {
+	if !t.CanReply() {
+		return fmt.Errorf("ticket: %s is %s and takes no reply", t.Code(), t.Status)
+	}
+	t.Status = StatusWaitingCustomer
+	t.touch(now, true)
+	return nil
+}
+
+// AddNote stamps a note only the team reads. A note moves nothing the customer
+// can read: the status stays, and so does the moment of the last message.
+func (t *Ticket) AddNote(now time.Time) error {
+	t.touch(now, false)
+	return nil
+}
+
+// Close ends the conversation.
+func (t *Ticket) Close(now time.Time) error {
+	if !t.CanClose() {
+		return fmt.Errorf("ticket: %s is already closed", t.Code())
+	}
+	t.setStatus(StatusClosed, now)
+	return nil
+}
+
+// Reopen brings a resolved or closed ticket back to the team.
+func (t *Ticket) Reopen(now time.Time) error {
+	if !t.CanReopen() {
+		return fmt.Errorf("ticket: %s is %s and cannot be reopened", t.Code(), t.Status)
+	}
+	t.setStatus(StatusWaitingTeam, now)
+	return nil
+}
+
+// SetStatus moves the ticket to the status the team chose.
+func (t *Ticket) SetStatus(next Status, now time.Time) error {
+	if !next.Valid() {
+		return fmt.Errorf("ticket: %q is not a status", next)
+	}
+	if next == t.Status {
+		return fmt.Errorf("ticket: %s is already %s", t.Code(), next)
+	}
+	t.setStatus(next, now)
+	return nil
+}
+
+// SetPriority changes how soon the team looks at the ticket.
+func (t *Ticket) SetPriority(next Priority, now time.Time) error {
+	if !next.Valid() {
+		return fmt.Errorf("ticket: %q is not a priority", next)
+	}
+	if next == t.Priority {
+		return fmt.Errorf("ticket: %s already has priority %s", t.Code(), next)
+	}
+	t.Priority = next
+	t.touch(now, false)
+	return nil
+}
+
+// Assign gives the ticket to a team member. An empty id takes it back.
+func (t *Ticket) Assign(id, name string, now time.Time) error {
+	if id == t.AssigneeID {
+		return fmt.Errorf("ticket: %s is already assigned that way", t.Code())
+	}
+	t.AssigneeID, t.AssigneeName = id, name
+	if id == "" {
+		t.AssigneeName = ""
+	}
+	t.touch(now, false)
+	return nil
+}
+
+// setStatus is the one place a status changes, so ClosedAt cannot disagree with
+// it.
+func (t *Ticket) setStatus(next Status, now time.Time) {
+	now = now.UTC()
+	t.Status = next
+	if next == StatusClosed {
+		t.ClosedAt = &now
+	} else {
+		t.ClosedAt = nil
+	}
+	t.touch(now, false)
+}
+
+// touch stamps a change; message says it was a message the customer can read.
+func (t *Ticket) touch(now time.Time, message bool) {
+	t.UpdatedAt = now.UTC()
+	if message {
+		t.LastMessageAt = t.UpdatedAt
+	}
+}
+
 // arandu:end custom
 
 // ErrNotFound is returned when no row matches, including when the row exists
@@ -77,94 +393,307 @@ var ticketTable = model.NewTable(model.TableSpec{
 // caller can still ask for it by name with errors.Is.
 var ErrNotFound = fmt.Errorf("ticket: record not found: %w", model.ErrModelNotFound)
 
-// Resource is the list of fields one Ticket is allowed to answer with.
-//
-// A declared list rather than the entity itself. An encoder handed the entity
-// answers with whatever fields it happens to have, including the ones somebody
-// adds later without ever opening the handler -- and TenantID is exactly such a
-// field: it names another customer's identifier and belongs in no response.
-type Resource struct {
-	id        string
-	name      string
-	createdAt time.Time
+// Message is one entry of a ticket's conversation.
+type Message struct {
+	model.Model
+
+	// ID is the identifier. It is an ordered identifier, so messages written in
+	// the same instant keep the order they were written in.
+	ID string `db:"id"`
+
+	// TenantID is the tenant of the ticket the message belongs to.
+	TenantID string `db:"tenant_id"`
+
+	// TicketID is the ticket.
+	TicketID string `db:"ticket_id"`
+
+	// AuthorID is who wrote it, empty for a line the system wrote.
+	AuthorID string `db:"author_id"`
+
+	// AuthorName is how the author was called when they wrote it.
+	AuthorName string `db:"author_name"`
+
+	// Role is what the author is to the ticket.
+	Role Role `db:"role"`
+
+	// Body is the text, plain with optional Markdown. The screens render it
+	// through arandu-markdown, which sanitizes it.
+	Body string `db:"body"`
+
+	// Internal marks a note only the team reads. The customer is never shown a
+	// message with this set, nor told one exists.
+	Internal Flag `db:"internal"`
+
+	// CreatedAt is when it was written, in UTC.
+	CreatedAt time.Time `db:"created_at"`
 }
 
-// NewResource snapshots one record for the response.
-func NewResource(record Ticket) Resource {
-	return newResource(record.ID, record.Name, record.CreatedAt)
+// messageTable is the table Message is a row of.
+var messageTable = model.NewTable(model.TableSpec{
+	Name:         messagesTable,
+	New:          func() model.Entity { return new(Message) },
+	ManualKey:    true,
+	NoTimestamps: true,
+})
+
+// Attachment is a file kept for a message. The bytes live on the application's
+// Disk, under a key the server generated; the row says which and what they
+// are.
+type Attachment struct {
+	model.Model
+
+	// ID is the identifier.
+	ID string `db:"id"`
+
+	// TenantID is the tenant of the ticket the file belongs to.
+	TenantID string `db:"tenant_id"`
+
+	// TicketID and MessageID say where the file was attached.
+	TicketID  string `db:"ticket_id"`
+	MessageID string `db:"message_id"`
+
+	// Key is where the Disk keeps the bytes. It is generated by the server and
+	// never shown.
+	Key string `db:"file_key"`
+
+	// Name is the name the customer's file had, cut to a bare file name.
+	Name string `db:"file_name"`
+
+	// ContentType is what the bytes are, as detected and not as announced.
+	ContentType string `db:"content_type"`
+
+	// Size is the number of bytes.
+	Size int64 `db:"size"`
+
+	// SHA256 is the digest of the bytes, in hex.
+	SHA256 string `db:"sha256"`
+
+	// CreatedAt is when it was stored, in UTC.
+	CreatedAt time.Time `db:"created_at"`
 }
 
-func resourceFromPointer(record *Ticket) Resource {
-	if record == nil {
-		return Resource{}
+// attachmentTable is the table Attachment is a row of.
+var attachmentTable = model.NewTable(model.TableSpec{
+	Name:         attachmentsTable,
+	New:          func() model.Entity { return new(Attachment) },
+	ManualKey:    true,
+	NoTimestamps: true,
+})
+
+// Counter is the last number a tenant's tickets were given. The row's key is
+// the tenant, so there is one row to take a lock on and no way to hold two. It
+// is bookkeeping: an application never reads or writes it.
+type Counter struct {
+	model.Model
+
+	ID         string    `db:"id"`
+	TenantID   string    `db:"tenant_id"`
+	LastNumber int64     `db:"last_number"`
+	UpdatedAt  time.Time `db:"updated_at"`
+}
+
+// counterTable is the table Counter is a row of.
+var counterTable = model.NewTable(model.TableSpec{
+	Name:         countersTable,
+	New:          func() model.Entity { return new(Counter) },
+	ManualKey:    true,
+	NoTimestamps: true,
+})
+
+// Summary is a ticket as a list, a response or a notification carries it: plain
+// values, with no connection to the database and nothing the customer must not
+// read.
+type Summary struct {
+	ID             string
+	Tenant         string
+	Number         int64
+	Subject        string
+	Status         Status
+	Priority       Priority
+	Category       string
+	RequesterID    string
+	RequesterName  string
+	RequesterEmail string
+	AssigneeID     string
+	AssigneeName   string
+	Origin         Origin
+	LastMessageAt  time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	ClosedAt       *time.Time
+}
+
+// Code is the number as people say it: "#000123".
+func (s Summary) Code() string { return code(s.Number) }
+
+// summaryOf snapshots a ticket.
+func summaryOf(t *Ticket) Summary {
+	if t == nil {
+		return Summary{}
 	}
-	return newResource(record.ID, record.Name, record.CreatedAt)
-}
-
-func newResource(id, name string, createdAt time.Time) Resource {
-	return Resource{id: id, name: name, createdAt: createdAt}
-}
-
-// ToArray returns the fields that may leave, by name.
-func (r Resource) ToArray() map[string]any {
-	return map[string]any{
-		"id":         r.id,
-		"name":       r.name,
-		"created_at": r.createdAt.UTC().Format(time.RFC3339),
+	return Summary{
+		ID: t.ID, Tenant: t.TenantID, Number: t.Number, Subject: t.Subject, Status: t.Status, Priority: t.Priority,
+		Category: t.Category, RequesterID: t.RequesterID, RequesterName: t.RequesterName, RequesterEmail: t.RequesterEmail,
+		AssigneeID: t.AssigneeID, AssigneeName: t.AssigneeName, Origin: t.Origin, LastMessageAt: t.LastMessageAt,
+		CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt, ClosedAt: t.ClosedAt,
 	}
 }
 
-// With returns what goes beside the fields at the top level of the response.
-// Nothing does here, and a resource that has nothing to add says so by
-// answering nil.
-func (r Resource) With() map[string]any { return nil }
-
-// Collection is a page of records as one response.
-type Collection struct {
-	records []Resource
-	// cursor is what the next page asks for, empty when this page is the last
-	// one. It goes beside the items rather than inside them: it describes the
-	// answer, not the things answered with.
-	cursor string
-}
-
-// NewCollection wraps a page of records for the response. The cursor is what
-// the next request passes back, and is empty when there is no next page.
-func NewCollection(records []Ticket, cursor string) Collection {
-	resources := make([]Resource, 0, len(records))
-	for _, record := range records {
-		resources = append(resources, NewResource(record))
+// summaryOfPlatform snapshots a ticket the team's list read.
+func summaryOfPlatform(t *platform.Ticket) Summary {
+	if t == nil {
+		return Summary{}
 	}
-	return Collection{records: resources, cursor: cursor}
+	return Summary{
+		ID: t.ID, Tenant: t.TenantID, Number: t.Number, Subject: t.Subject, Status: Status(t.Status), Priority: Priority(t.Priority),
+		Category: t.Category, RequesterID: t.RequesterID, RequesterName: t.RequesterName, RequesterEmail: t.RequesterEmail,
+		AssigneeID: t.AssigneeID, AssigneeName: t.AssigneeName, Origin: Origin(t.Origin), LastMessageAt: t.LastMessageAt,
+		CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt, ClosedAt: t.ClosedAt,
+	}
 }
 
-// collectionFromPointers takes the Model-backed rows returned by a terminal
-// and snapshots only what the response reads. The public constructor keeps its
-// value-based API for callers that build resources without touching storage.
-func collectionFromPointers(records []*Ticket, cursor string) Collection {
-	resources := make([]Resource, 0, len(records))
-	for _, record := range records {
-		if record != nil {
-			resources = append(resources, resourceFromPointer(record))
+// MessageView is a message as a screen, a response or a notification carries
+// it.
+type MessageView struct {
+	ID          string
+	AuthorID    string
+	AuthorName  string
+	Role        Role
+	Body        string
+	Internal    bool
+	CreatedAt   time.Time
+	Attachments []AttachmentView
+}
+
+// AttachmentView is a file as a screen or a response describes it. The key it
+// is kept under is not part of it: the bytes are read through the package's
+// download route, which asks the policy first.
+type AttachmentView struct {
+	ID          string
+	Name        string
+	ContentType string
+	Size        int64
+}
+
+func messageViewOf(m *Message, files []*Attachment) MessageView {
+	view := MessageView{
+		ID: m.ID, AuthorID: m.AuthorID, AuthorName: m.AuthorName, Role: m.Role, Body: m.Body,
+		Internal: bool(m.Internal), CreatedAt: m.CreatedAt,
+	}
+	for _, file := range files {
+		if file.MessageID == m.ID {
+			view.Attachments = append(view.Attachments, AttachmentView{ID: file.ID, Name: file.Name, ContentType: file.ContentType, Size: file.Size})
 		}
 	}
-	return Collection{records: resources, cursor: cursor}
+	return view
 }
 
-// ToArray returns the page under a single key, so that the shape of the
-// response does not change when a second key is added beside it.
-func (c Collection) ToArray() map[string]any {
-	items := make([]map[string]any, 0, len(c.records))
-	for _, record := range c.records {
-		items = append(items, record.ToArray())
-	}
-	return map[string]any{"items": items}
+// Conversation is a ticket with what was said on it, as the side asking may
+// read it. The customer's never holds an internal note.
+type Conversation struct {
+	Ticket   Summary
+	Messages []MessageView
 }
 
-// With returns the cursor of the next page, and nothing when there is none.
-func (c Collection) With() map[string]any {
-	if c.cursor == "" {
-		return nil
+// fieldsResource is a response made of named fields.
+type fieldsResource map[string]any
+
+// ToArray returns the fields.
+func (f fieldsResource) ToArray() map[string]any { return f }
+
+// With returns what goes beside the fields: nothing.
+func (fieldsResource) With() map[string]any { return nil }
+
+// summaryFields are the fields of a ticket that may leave. Both sides read
+// these; the team's extras are not here.
+func summaryFields(s Summary) map[string]any {
+	out := map[string]any{
+		"id":              s.ID,
+		"number":          s.Number,
+		"code":            s.Code(),
+		"subject":         s.Subject,
+		"status":          string(s.Status),
+		"priority":        string(s.Priority),
+		"category":        s.Category,
+		"requester_id":    s.RequesterID,
+		"requester_name":  s.RequesterName,
+		"requester_email": s.RequesterEmail,
+		"assignee_id":     s.AssigneeID,
+		"assignee_name":   s.AssigneeName,
+		"origin":          string(s.Origin),
+		"last_message_at": s.LastMessageAt.UTC().Format(time.RFC3339),
+		"created_at":      s.CreatedAt.UTC().Format(time.RFC3339),
+		"updated_at":      s.UpdatedAt.UTC().Format(time.RFC3339),
+		"closed_at":       nil,
 	}
-	return map[string]any{"next_cursor": c.cursor}
+	if s.ClosedAt != nil {
+		out["closed_at"] = s.ClosedAt.UTC().Format(time.RFC3339)
+	}
+	return out
 }
+
+// customerFields are the fields a ticket answers the customer with. The team's
+// triage is not among them -- who took the ticket, how urgent the team judged it,
+// where it came from -- because it is how the team works and not what the
+// customer asked.
+func customerFields(s Summary) map[string]any {
+	out := summaryFields(s)
+	for _, internal := range []string{"assignee_id", "assignee_name", "priority", "origin"} {
+		delete(out, internal)
+	}
+	return out
+}
+
+// teamFields are the fields a ticket answers the team with: the tenant too,
+// because the team reads every tenant's tickets and the number alone does not
+// say whose.
+func teamFields(s Summary) map[string]any {
+	out := summaryFields(s)
+	out["tenant"] = s.Tenant
+	return out
+}
+
+func messageFields(m MessageView) map[string]any {
+	files := make([]map[string]any, 0, len(m.Attachments))
+	for _, f := range m.Attachments {
+		files = append(files, map[string]any{"id": f.ID, "name": f.Name, "content_type": f.ContentType, "size": f.Size})
+	}
+	return map[string]any{
+		"id":          m.ID,
+		"author_id":   m.AuthorID,
+		"author_name": m.AuthorName,
+		"role":        string(m.Role),
+		"body":        m.Body,
+		"internal":    m.Internal,
+		"created_at":  m.CreatedAt.UTC().Format(time.RFC3339),
+		"attachments": files,
+	}
+}
+
+// customerConversation is a conversation as a response to the customer. A
+// message marked internal is dropped here as well as in the query: the field
+// that says so is not one the customer's response carries.
+func customerConversation(c Conversation) fieldsResource {
+	messages := make([]map[string]any, 0, len(c.Messages))
+	for _, m := range c.Messages {
+		if m.Internal {
+			continue
+		}
+		fields := messageFields(m)
+		delete(fields, "internal")
+		messages = append(messages, fields)
+	}
+	return fieldsResource{"ticket": customerFields(c.Ticket), "messages": messages}
+}
+
+// teamConversation is a conversation as a response to the team.
+func teamConversation(c Conversation) fieldsResource {
+	messages := make([]map[string]any, 0, len(c.Messages))
+	for _, m := range c.Messages {
+		messages = append(messages, messageFields(m))
+	}
+	return fieldsResource{"ticket": teamFields(c.Ticket), "messages": messages}
+}
+
+// trimmed is the text with the space around it taken off.
+func trimmed(s string) string { return strings.TrimSpace(s) }

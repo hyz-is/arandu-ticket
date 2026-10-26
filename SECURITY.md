@@ -36,7 +36,14 @@ particular:
 - a query whose tenant scope is disabled, or a tenant taken from anywhere but
   `data.Tenant(g)`;
 - a `Grant` that can be produced without a policy returning nil;
-- a field reaching a response that `Resource` does not list.
+- a field reaching a response that the declared lists in `model.go` do not name,
+  and above all an internal note, the team's priority or assignee, or a file of
+  a note reaching a customer;
+- a Grant built outside `grants.go`, or a team action reaching a subject outside
+  `Config.TeamTenant`;
+- a file served without the policy, under a name or a type the sender chose, or
+  by an address that does not ask who is reading;
+- text a person typed reaching a page unescaped.
 
 ## What is not
 
