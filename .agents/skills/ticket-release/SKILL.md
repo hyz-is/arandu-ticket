@@ -50,7 +50,7 @@ package's own suite.
 
 ```toml
 name = "hyz-is/ticket"
-framework = ">= 0.66"
+framework = ">= 0.69"
 profiles = ["conventional", "performance"]
 
 [permissions]
@@ -69,7 +69,7 @@ is why `filesystem` is `false`; an `os.WriteFile` added here changes the manifes
 in the same commit.
 
 The `framework` line is a floor and a second declaration of what `go.mod` says:
-`framework = ">= 0.66"`. Move both together when you bump.
+`framework = ">= 0.69"`. Move both together when you bump.
 
 ## Dependencies
 

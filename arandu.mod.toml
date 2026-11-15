@@ -5,7 +5,7 @@
 # opens an installed package.
 
 name = "hyz-is/ticket"
-framework = ">= 0.66"
+framework = ">= 0.69"
 profiles = ["conventional", "performance"]
 
 [permissions]
