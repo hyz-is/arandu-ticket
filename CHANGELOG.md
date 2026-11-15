@@ -10,6 +10,17 @@ a release is corrected by another release and never by moving a tag.
 
 ## [Unreleased]
 
+### Changed
+
+- The customer's and the team's lists are drawn with Kyse's server-side data
+  table: the views hand it a `State` (`IndexPageData.TableState` and
+  `TeamIndexPageData.TableState`) instead of a query, a sort and the chosen
+  values, and the columns a reader switched off survive a search, an order and a
+  page through the `hide` parameter. The `space` a team list was asked for is
+  carried by every address of the table. Requires Kyse v0.53.0.
+- The `table` block of the catalogue names the sentences of the new table, in
+  `en` and `pt-BR`; `table.showing`, `table.per_page` and `table.page` are gone.
+
 ## [0.1.0] - 2026-10-26
 
 ### Added

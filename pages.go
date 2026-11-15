@@ -181,10 +181,17 @@ func framePage(p hview.Page) fview.Page {
 func (s Screen) TableLines() components.DataTableLines {
 	l := s.Labels
 	return components.DataTableLines{
-		Showing: l.T("table.showing"), PerPage: l.T("table.per_page"), NoResult: l.T("table.no_result"),
-		Previous: l.T("table.previous"), Next: l.T("table.next"), Page: l.T("table.page"), PageOf: l.T("table.page_of"),
-		Back: l.T("table.back"), Forward: l.T("table.forward"), SelectAll: l.T("table.select_all"), Bulk: l.T("table.bulk"),
-		Apply: l.T("table.apply"), Ascending: l.T("table.ascending"), Descending: l.T("table.descending"), Unsorted: l.T("table.unsorted"),
+		Filter: l.T("table.filter"), NoResult: l.T("table.no_result"),
+		Rows: l.T("table.rows"), RowsOne: l.T("table.rows_one"), RowsMany: l.T("table.rows_many"),
+		SelectedCount: l.T("table.selected_count"), RowsPerPage: l.T("table.rows_per_page"), PageOf: l.T("table.page_of"),
+		First: l.T("table.first"), Previous: l.T("table.previous"), Next: l.T("table.next"), Last: l.T("table.last"),
+		Back: l.T("table.back"), Forward: l.T("table.forward"),
+		SelectAll: l.T("table.select_all"), SelectRow: l.T("table.select_row"), Bulk: l.T("table.bulk"), Apply: l.T("table.apply"),
+		Ascending: l.T("table.ascending"), Descending: l.T("table.descending"), Unsorted: l.T("table.unsorted"),
+		Reset: l.T("table.reset"), ClearFilters: l.T("table.clear_filters"),
+		NoFacetResults: l.T("table.no_facet_results"), FacetSelected: l.T("table.facet_selected"),
+		OpenMenu: l.T("table.open_menu"), Actions: l.T("table.actions"), ToggleColumns: l.T("table.toggle_columns"),
+		Asc: l.T("table.asc"), Desc: l.T("table.desc"), Hide: l.T("table.hide"),
 	}
 }
 
@@ -282,11 +289,13 @@ type MessageRow struct {
 // and ordered on the server.
 type IndexPageData struct {
 	Screen
-	Rows          []TicketRow
-	Query         string
-	Statuses      []string
-	SortKey       string
-	SortDir       string
+	Rows     []TicketRow
+	Query    string
+	Statuses []string
+	SortKey  string
+	SortDir  string
+	// Hidden are the keys of the columns the reader switched off.
+	Hidden        []string
 	URL, NewURL   string
 	CanCreate     bool
 	Pager         components.Paginator
@@ -294,6 +303,34 @@ type IndexPageData struct {
 	Pages, Total  int
 	PerPage       int
 	StatusOptions []components.SelectOption
+}
+
+// TableState is the customer's list as the data table draws its addresses from:
+// what is searched, the order in force (the latest change first when nobody
+// ordered), the statuses chosen, the page and the columns switched off. Every
+// control of the table builds its address from it, so a step keeps the others.
+func (d IndexPageData) TableState() components.DataTableState {
+	return components.DataTableValues{
+		Q: d.Query, Sort: orderKey(d.SortKey), Dir: orderDir(d.SortDir),
+		Facets:      map[string][]string{"status": d.Statuses},
+		CurrentPage: d.CurrentPage, Size: d.PerPage, DefaultSize: d.PerPage, Hide: d.Hidden,
+	}
+}
+
+// orderKey and orderDir are the order in force; a list nobody ordered is
+// ordered by the latest change, newest first.
+func orderKey(key string) string {
+	if key == "" {
+		return "updated_at"
+	}
+	return key
+}
+
+func orderDir(dir string) string {
+	if dir == "asc" {
+		return "asc"
+	}
+	return "desc"
 }
 
 // NewPageData is the form that opens a ticket.
@@ -326,21 +363,41 @@ type ShowPageData struct {
 // and ordered on the server.
 type TeamIndexPageData struct {
 	Screen
-	Rows            []TicketRow
-	Query           string
-	Statuses        []string
-	Priorities      []string
-	Assignee        string
-	Space           string
-	SortKey         string
-	SortDir         string
+	Rows       []TicketRow
+	Query      string
+	Statuses   []string
+	Priorities []string
+	Assignee   string
+	Space      string
+	SortKey    string
+	SortDir    string
+	// Hidden are the keys of the columns the reader switched off.
+	Hidden          []string
 	URL             string
 	Pager           components.Paginator
 	CurrentPage     int
 	Pages, Total    int
+	PerPage         int
 	StatusOptions   []components.SelectOption
 	PriorityOptions []components.SelectOption
 	AssigneeOptions []components.SelectOption
+}
+
+// TableState is the team's list as the data table draws its addresses from; see
+// IndexPageData.TableState. The assignee and the space travel as facets, so a
+// step of the table keeps them.
+func (d TeamIndexPageData) TableState() components.DataTableState {
+	facets := map[string][]string{"status": d.Statuses, "priority": d.Priorities}
+	if d.Assignee != "" {
+		facets["assignee"] = []string{d.Assignee}
+	}
+	if d.Space != "" {
+		facets["space"] = []string{d.Space}
+	}
+	return components.DataTableValues{
+		Q: d.Query, Sort: orderKey(d.SortKey), Dir: orderDir(d.SortDir), Facets: facets,
+		CurrentPage: d.CurrentPage, Size: d.PerPage, DefaultSize: d.PerPage, Hide: d.Hidden,
+	}
 }
 
 // TeamShowPageData is one conversation, for the team, with its internal notes

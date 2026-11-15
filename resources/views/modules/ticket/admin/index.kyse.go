@@ -12,20 +12,6 @@ import (
 // IndexData is what the handler hands this page.
 type IndexData = ticket.TeamIndexPageData
 
-func sortKey(data IndexData) string {
-	if data.SortKey == "" {
-		return "updated_at"
-	}
-	return data.SortKey
-}
-
-func sortDir(data IndexData) string {
-	if data.SortDir == "asc" {
-		return "asc"
-	}
-	return "desc"
-}
-
 // ticketsTable is the team's work: the tickets of every space, paged, filtered,
 // searched and ordered by the server. Each row opens the conversation.
 func ticketsTable(data IndexData) components.DataTableProps {
@@ -48,16 +34,15 @@ func ticketsTable(data IndexData) components.DataTableProps {
 	}
 	return components.DataTableProps{
 		ID: "ticket-team-list", Label: data.Labels.T("screen.team_index_title"), URL: data.URL,
+		State: data.TableState(), Paginator: data.Pager, FullPager: true, HeaderMenu: true,
 		Caption: data.Labels.T("screen.team_index_lead"), ColumnsLabel: data.Labels.T("control.columns"), Lines: data.TableLines(),
-		Query: data.Query, SearchName: "q", SearchPlaceholder: data.Labels.T("screen.team_search"),
+		Searchable: true, SearchPlaceholder: data.Labels.T("screen.team_search"),
 		SearchLabel: data.SearchLabel(data.Labels.T("screen.team_index_title")),
 		Filters: []components.DataTableFilter{
-			{Key: "status", Label: data.Labels.T("field.status"), Options: data.StatusOptions, Selected: data.Statuses},
-			{Key: "priority", Label: data.Labels.T("field.priority"), Options: data.PriorityOptions, Selected: data.Priorities},
-			{Key: "assignee", Label: data.Labels.T("field.assignee"), Options: data.AssigneeOptions, Selected: oneOf(data.Assignee)},
+			{Key: "status", Label: data.Labels.T("field.status"), Options: data.StatusOptions},
+			{Key: "priority", Label: data.Labels.T("field.priority"), Options: data.PriorityOptions},
+			{Key: "assignee", Label: data.Labels.T("field.assignee"), Options: data.AssigneeOptions},
 		},
-		SortKey: sortKey(data), SortDir: sortDir(data),
-		Paginator: data.Pager,
 		Columns: []components.TableColumn{
 			{Label: data.Labels.T("field.number"), Key: "number", Sortable: true},
 			{Label: data.Labels.T("field.subject"), Key: "subject", Sortable: true},
@@ -73,13 +58,6 @@ func ticketsTable(data IndexData) components.DataTableProps {
 			Title: data.Labels.T("screen.team_index_empty"), Message: data.Labels.T("screen.team_index_empty_lead"),
 		},
 	}
-}
-
-func oneOf(value string) []string {
-	if value == "" {
-		return nil
-	}
-	return []string{value}
 }
 @endgo
 

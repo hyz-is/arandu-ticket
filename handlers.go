@@ -194,7 +194,7 @@ func (m *Module) teamIndex(ctx *fhttp.Context) error {
 	}
 	page, err := m.team.List(ctx.Ctx(), who, TeamQuery{
 		Search: params.search, Statuses: params.statuses, Priorities: params.priorities, Assignee: params.assignee,
-		Tenant: ctx.Query("space"), Sort: params.sort, Dir: params.dir, Page: params.page, PerPage: m.cfg.PageSize,
+		Tenant: params.space, Sort: params.sort, Dir: params.dir, Page: params.page, PerPage: m.cfg.PageSize,
 	})
 	if err != nil {
 		return err
@@ -348,6 +348,8 @@ type params struct {
 	statuses   []Status
 	priorities []Priority
 	assignee   string
+	space      string
+	hidden     []string
 	sort, dir  string
 	page       int
 }
@@ -356,7 +358,10 @@ type params struct {
 // allowlist has it.
 func listParams(ctx *fhttp.Context, allowed map[string]string) params {
 	query := ctx.Request.URL.Query()
-	p := params{search: strings.TrimSpace(query.Get("q")), assignee: strings.TrimSpace(query.Get("assignee"))}
+	p := params{
+		search: strings.TrimSpace(query.Get("q")), assignee: strings.TrimSpace(query.Get("assignee")),
+		space: strings.TrimSpace(query.Get("space")), hidden: hiddenColumns(query),
+	}
 	for _, raw := range query["status"] {
 		if s := Status(strings.TrimSpace(raw)); s.Valid() {
 			p.statuses = append(p.statuses, s)
@@ -377,6 +382,25 @@ func listParams(ctx *fhttp.Context, allowed map[string]string) params {
 	}
 	p.page, _ = strconv.Atoi(query.Get("page"))
 	return p
+}
+
+// maxHiddenColumns bounds how many columns a request may switch off, so the
+// address a table writes back stays short.
+const maxHiddenColumns = 16
+
+// hiddenColumns are the keys of the columns the query switched off. The table
+// only hides a column that declared itself hideable, so a key it does not know
+// changes nothing; this keeps the list short and each key a short word.
+func hiddenColumns(query url.Values) []string {
+	var keys []string
+	for _, key := range query["hide"] {
+		key = strings.TrimSpace(key)
+		if key == "" || len(key) > 32 || len(keys) == maxHiddenColumns {
+			continue
+		}
+		keys = append(keys, key)
+	}
+	return keys
 }
 
 // pageResource is a page of a list as one response.

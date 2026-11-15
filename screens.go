@@ -77,7 +77,7 @@ func (m *Module) indexPage(ctx *fhttp.Context, sc Screen, who security.Subject, 
 		chosen = append(chosen, string(s))
 	}
 	return IndexPageData{
-		Screen: sc, Rows: rows, Query: p.search, Statuses: chosen, SortKey: p.sort, SortDir: p.dir,
+		Screen: sc, Rows: rows, Query: p.search, Statuses: chosen, SortKey: p.sort, SortDir: p.dir, Hidden: p.hidden,
 		URL: u.Index(), NewURL: u.New(), CanCreate: m.allows(ctx, who, TicketCreate, Ticket{}),
 		Pager:       pager(len(rows), page.Total, m.cfg.PageSize, page.Page, u.Index(), listQueryValues(p)),
 		CurrentPage: page.Page, Pages: page.Pages, Total: page.Total, PerPage: m.cfg.PageSize,
@@ -148,10 +148,10 @@ func (m *Module) teamIndexPage(sc Screen, who security.Subject, p params, page P
 	}
 	options := append(sc.assigneeChoices(who, people, Summary{}), components.SelectOption{Value: AssigneeNone, Label: sc.Labels.T("filter.unassigned")})
 	return TeamIndexPageData{
-		Screen: sc, Rows: rows, Query: p.search, Statuses: statuses, Priorities: priorities, Assignee: p.assignee,
-		SortKey: p.sort, SortDir: p.dir, URL: u.TeamIndex(),
+		Screen: sc, Rows: rows, Query: p.search, Statuses: statuses, Priorities: priorities, Assignee: p.assignee, Space: p.space,
+		SortKey: p.sort, SortDir: p.dir, Hidden: p.hidden, URL: u.TeamIndex(),
 		Pager:       pager(len(rows), page.Total, m.cfg.PageSize, page.Page, u.TeamIndex(), listQueryValues(p)),
-		CurrentPage: page.Page, Pages: page.Pages, Total: page.Total,
+		CurrentPage: page.Page, Pages: page.Pages, Total: page.Total, PerPage: m.cfg.PageSize,
 		StatusOptions: sc.StatusOptions(), PriorityOptions: sc.PriorityOptions(), AssigneeOptions: options,
 	}
 }

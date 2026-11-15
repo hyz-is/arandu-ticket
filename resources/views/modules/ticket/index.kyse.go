@@ -15,22 +15,6 @@ import (
 // once, beside the code that fills it.
 type IndexData = ticket.IndexPageData
 
-// sortKey and sortDir are the ordering in force; a list nobody ordered is
-// ordered by the latest change, newest first.
-func sortKey(data IndexData) string {
-	if data.SortKey == "" {
-		return "updated_at"
-	}
-	return data.SortKey
-}
-
-func sortDir(data IndexData) string {
-	if data.SortDir == "asc" {
-		return "asc"
-	}
-	return "desc"
-}
-
 // ticketsTable is the customer's list, paged, filtered, searched and ordered by
 // the server. Each row opens the conversation.
 func ticketsTable(data IndexData) components.DataTableProps {
@@ -46,14 +30,13 @@ func ticketsTable(data IndexData) components.DataTableProps {
 	}
 	return components.DataTableProps{
 		ID: "ticket-list", Label: data.Labels.T("screen.index_title"), URL: data.URL,
+		State: data.TableState(), Paginator: data.Pager, FullPager: true, HeaderMenu: true,
 		Caption: data.Labels.T("screen.index_lead"), ColumnsLabel: data.Labels.T("control.columns"), Lines: data.TableLines(),
-		Query: data.Query, SearchName: "q", SearchPlaceholder: data.Labels.T("control.search_placeholder"),
+		Searchable: true, SearchPlaceholder: data.Labels.T("control.search_placeholder"),
 		SearchLabel: data.SearchLabel(data.Labels.T("screen.index_title")),
 		Filters: []components.DataTableFilter{
-			{Key: "status", Label: data.Labels.T("field.status"), Options: data.StatusOptions, Selected: data.Statuses},
+			{Key: "status", Label: data.Labels.T("field.status"), Options: data.StatusOptions},
 		},
-		SortKey: sortKey(data), SortDir: sortDir(data),
-		Paginator: data.Pager,
 		Columns: []components.TableColumn{
 			{Label: data.Labels.T("field.number"), Key: "number", Sortable: true},
 			{Label: data.Labels.T("field.subject"), Key: "subject", Sortable: true},
