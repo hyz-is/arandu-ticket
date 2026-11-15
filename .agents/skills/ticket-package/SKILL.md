@@ -136,7 +136,7 @@ limit in front of the call.
 ## Routes
 
 Every route sits behind `RequireAuth`, mounted by the package itself. A request
-with no session is sent to `/auth/login`: 303, or `HX-Redirect` for an htmx
+with no session is sent to `/auth/login`: 303, or `YPY-Redirect` for a YPY
 request. **Symptom to recognise:** every route redirects to `/auth/login`.
 Nobody is signed in on that request: the session cookie did not arrive, or the
 session store passed to `New` is not the one the application signs people in
