@@ -33,8 +33,11 @@ import (
 )
 ```
 
-The construction, in `Build`, after the session store, the activity log and the
-markdown module exist and before `k.Register`:
+The construction, in `App`, once `NewAppServiceProvider` has returned and the
+activity log and the markdown module exist. `New` refuses a wiring that cannot
+work and `Configure` has no way to return that error, so the module is built
+where the error can leave; the database and the session store are the ones the
+framework built from the configuration:
 
 ```go
 	ticketModule, err := ticket.New(ticket.Config{
@@ -44,16 +47,20 @@ markdown module exist and before `k.Register`:
 		Activity:   activityModule.Logger(),
 		Markdown:   markdownModule,
 		Files:      filesDisk,
-	}, db, sessions)
+	}, drivers.DB, drivers.Sessions)
 	if err != nil {
-		return App{}, err
+		_ = drivers.Close()
+		return nil, err
 	}
 ```
 
-The registration, inside the `k.Register(...)` call already there:
+And the registration, in the `WithProviders(...)` chain the builder is made of:
 
 ```go
-		ticketModule,
+	return Configure(cfg, drivers, app).
+		WithProviders(ticketModule).
+		WithVersion(version, commit).
+		Create()
 ```
 
 `New` refuses a configuration that cannot work, a nil database handle and a nil
