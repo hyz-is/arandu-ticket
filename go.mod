@@ -7,7 +7,7 @@ require (
 	github.com/arandu-io/hesape v0.109.0
 	github.com/arandu-io/hesape/database/connectors/sqlite v0.11.0
 	github.com/arandu-io/kyse v0.53.1
-	github.com/hyz-is/arandu-activitylog v0.7.0
+	github.com/hyz-is/arandu-activitylog v0.7.1
 	github.com/hyz-is/arandu-markdown v0.4.0
 )
 
