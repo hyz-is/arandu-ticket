@@ -37,7 +37,7 @@ that wires the package.
 missing, stale or edited by hand. It needs the `aru` binary.
 
 `TestEveryPublishedViewCompiles` publishes the views into a scratch project,
-compiles them with the view compiler pinned in the test (`aru@v0.74.0`), builds
+compiles them with the view compiler pinned in the test (`aru@v0.88.0`), builds
 them and draws every screen once. Move that version to take on a stricter
 compiler, and fix the view it refuses here rather than in every application.
 
@@ -50,7 +50,7 @@ package's own suite.
 
 ```toml
 name = "hyz-is/ticket"
-framework = ">= 0.69"
+framework = ">= 0.71"
 profiles = ["conventional", "performance"]
 
 [permissions]
@@ -69,7 +69,7 @@ is why `filesystem` is `false`; an `os.WriteFile` added here changes the manifes
 in the same commit.
 
 The `framework` line is a floor and a second declaration of what `go.mod` says:
-`framework = ">= 0.69"`. Move both together when you bump.
+`framework = ">= 0.71"`. Move both together when you bump.
 
 ## Dependencies
 
