@@ -32,6 +32,7 @@ func ticketsTable(data IndexData) components.DataTableProps {
 			{HTML: components.Link(components.LinkProps{Label: t.Subject, URL: t.URL, Variant: "hover"})},
 			{Text: t.Requester},
 			space,
+			{Text: t.Origin},
 			{HTML: components.Badge(components.BadgeProps{Label: t.Priority, Variant: ticket.PriorityVariant(t.PriorityKey)})},
 			{HTML: components.Badge(components.BadgeProps{Label: t.Status, Variant: ticket.StatusVariant(t.StatusKey)})},
 			{Text: assignee},
@@ -47,6 +48,7 @@ func ticketsTable(data IndexData) components.DataTableProps {
 		Filters: []components.DataTableFilter{
 			{Key: "status", Label: data.Labels.T("field.status"), Options: data.StatusOptions},
 			{Key: "priority", Label: data.Labels.T("field.priority"), Options: data.PriorityOptions},
+			{Key: "origin", Label: data.Labels.T("field.origin"), Options: data.OriginOptions},
 			{Key: "assignee", Label: data.Labels.T("field.assignee"), Options: data.AssigneeOptions},
 		},
 		Columns: []components.TableColumn{
@@ -54,6 +56,7 @@ func ticketsTable(data IndexData) components.DataTableProps {
 			{Label: data.Labels.T("field.subject"), Key: "subject", Sortable: true},
 			{Label: data.Labels.T("field.requester"), Key: "requester", Sortable: true, Hideable: true},
 			{Label: data.Labels.T("field.space"), Key: "tenant", Sortable: true, Hideable: true},
+			{Label: data.Labels.T("field.origin"), Key: "origin", Sortable: true, Hideable: true},
 			{Label: data.Labels.T("field.priority"), Key: "priority", Sortable: true},
 			{Label: data.Labels.T("field.status"), Key: "status", Sortable: true},
 			{Label: data.Labels.T("field.assignee"), Key: "assignee", Sortable: true, Hideable: true},

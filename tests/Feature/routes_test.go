@@ -547,6 +547,32 @@ func TestTheTwoSidesAreMountedApartAndGuardedApart(t *testing.T) {
 	}
 }
 
+func TestACustomerGuardRunsOnTheCustomersSideAloneAndTheSharedOneOnBoth(t *testing.T) {
+	t.Parallel()
+	mark := func(header string) func(http.Handler) http.Handler {
+		return func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Add("X-Guard", header)
+				next.ServeHTTP(w, r)
+			})
+		}
+	}
+	w := installWith(t, func(c *ticket.Config) {
+		c.Middleware = []func(http.Handler) http.Handler{mark("shared")}
+		c.CustomerMiddleware = []func(http.Handler) http.Handler{mark("customer")}
+		c.TeamMiddleware = []func(http.Handler) http.Handler{mark("team")}
+	})
+	s := serve(t, w)
+	rita := s.signIn(t, agent("team-1"))
+	ana := s.signIn(t, member("acme", "user-ana"))
+	if got := s.answer(t, request{method: http.MethodGet, target: "/tickets", cookies: ana, json: true}).Header().Values("X-Guard"); strings.Join(got, ",") != "shared,customer" {
+		t.Fatalf("the customer's route ran the guards %v, want shared then customer", got)
+	}
+	if got := s.answer(t, request{method: http.MethodGet, target: "/admin/tickets", cookies: rita, json: true}).Header().Values("X-Guard"); strings.Join(got, ",") != "shared,team" {
+		t.Fatalf("the team's route ran the guards %v, want shared then team", got)
+	}
+}
+
 // TestNoRouteLandsInTheFrameworkNamespace is the one property of this package
 // that syntax cannot hold: a prefix arrives through configuration, so the only
 // way to know where the routes ended up is to register them and read the table

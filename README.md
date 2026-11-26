@@ -205,6 +205,9 @@ here and delivers it from its queue.
 
 ### Directory (optional)
 
+For a team that is the members of an arandu-permission group, `teamdir.New`
+builds one (see the end of this section).
+
 ```go
 type Directory interface {
 	Person(ctx context.Context, tenant, id string) (Person, error) // ErrNoAccount if none
@@ -215,6 +218,23 @@ type Directory interface {
 Without one, a ticket keeps the requester's name and e-mail it was given (the
 contact form's account carries them), a message shows its author's role in place
 of a name, and a ticket can be assigned only to the member of the team who asks.
+
+When the team is a permission group, the `teamdir` package lists its members:
+
+```go
+import "github.com/hyz-is/arandu-ticket/teamdir"
+
+dir, err := teamdir.New(teamdir.Config{
+	Permission: permissionModule.Service(),
+	Realm:      cfg.Auth.Tenant, // ticket.Config.TeamTenant
+	Group:      "administradores",
+	Names:      namesOf(users), // id -> ticket.Person, ticket.ErrNoAccount for nobody
+})
+// ticket.Config{Directory: dir, ...}
+```
+
+Every member of the group can then be given a ticket and shows by name; a member
+the `Names` lookup does not know is left out.
 
 ## The contact form
 
@@ -366,7 +386,7 @@ own container.
 | `TeamPrefix` | no | where the team's routes are mounted. Defaults to `/admin/tickets`. |
 | `Paths` | no | the segments of every route. Empty fields keep `DefaultPaths`; `PortuguesePaths` is the set in pt-BR. |
 | `PageSize` | no | rows per page. Defaults to 25, refused above 100. |
-| `Middleware`, `TeamMiddleware` | no | run after `RequireAuth`, on every route and on the team's only. A guard says "this request is on the right side" and stops; the policy still decides. |
+| `Middleware`, `CustomerMiddleware`, `TeamMiddleware` | no | run after `RequireAuth`: `Middleware` on every route, `CustomerMiddleware` on the customer's only, `TeamMiddleware` on the team's only. A guard says "this request is on the right side" and stops; the policy still decides. |
 | `Accounts` | no | the `AccountResolver`. Without it `OpenFromContact` refuses. |
 | `Directory` | no | names people and lists the team. |
 | `Notifier` | no | told about a ticket opened and a reply. Nil tells nobody. |

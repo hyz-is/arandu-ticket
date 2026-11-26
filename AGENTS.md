@@ -50,7 +50,7 @@ this package must prove about itself it proves in its own suite or nowhere.
 | | measured with |
 | --- | --- |
 | 23 Go files at the root, one per role, four of them generated | `ls *.go \| wc -l` |
-| 1 internal package (`internal/platform`), the table that reads every tenant | `find internal -name '*.go'` |
+| 1 internal package (`internal/platform`), the table that reads every tenant, and 1 public one (`teamdir`) | `find internal teamdir -name '*.go'` |
 | 16 routes, 8 for each side | `grep -c '{"ticket\.' config.go` |
 | 12 actions: 5 customer, 4 team, 3 nobody holds | `grep -cE '^\t[A-Za-z]+ security.Action = ' policy.go` |
 | 5 views, 2 locales | `find resources -type f` |

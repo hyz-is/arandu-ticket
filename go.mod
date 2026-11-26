@@ -9,6 +9,7 @@ require (
 	github.com/arandu-io/kyse v0.53.1
 	github.com/hyz-is/arandu-activitylog v0.7.0
 	github.com/hyz-is/arandu-markdown v0.4.0
+	github.com/hyz-is/arandu-permission v0.13.3
 )
 
 require (

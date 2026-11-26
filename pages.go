@@ -229,6 +229,15 @@ func (s Screen) PriorityOptions() []components.SelectOption {
 	return out
 }
 
+// OriginOptions are the channels as options of a filter.
+func (s Screen) OriginOptions() []components.SelectOption {
+	out := make([]components.SelectOption, 0, len(Origins))
+	for _, origin := range Origins {
+		out = append(out, components.SelectOption{Value: string(origin), Label: s.Labels.Origin(origin)})
+	}
+	return out
+}
+
 // When is an instant as Brazilians write it, in the screen's timezone.
 func (s Screen) When(t time.Time) string {
 	if t.IsZero() {
@@ -385,10 +394,12 @@ type TeamIndexPageData struct {
 	Query      string
 	Statuses   []string
 	Priorities []string
-	Assignee   string
-	Space      string
-	SortKey    string
-	SortDir    string
+	// Origins are the channels the list is narrowed to.
+	Origins  []string
+	Assignee string
+	Space    string
+	SortKey  string
+	SortDir  string
 	// Hidden are the keys of the columns the reader switched off.
 	Hidden []string
 	URL    string
@@ -401,6 +412,7 @@ type TeamIndexPageData struct {
 	PerPage         int
 	StatusOptions   []components.SelectOption
 	PriorityOptions []components.SelectOption
+	OriginOptions   []components.SelectOption
 	AssigneeOptions []components.SelectOption
 }
 
@@ -408,7 +420,7 @@ type TeamIndexPageData struct {
 // IndexPageData.TableState. The assignee and the space travel as facets, so a
 // step of the table keeps them.
 func (d TeamIndexPageData) TableState() components.DataTableState {
-	facets := map[string][]string{"status": d.Statuses, "priority": d.Priorities}
+	facets := map[string][]string{"status": d.Statuses, "priority": d.Priorities, "origin": d.Origins}
 	if d.Assignee != "" {
 		facets["assignee"] = []string{d.Assignee}
 	}

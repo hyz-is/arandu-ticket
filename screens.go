@@ -146,13 +146,17 @@ func (m *Module) teamIndexPage(sc Screen, who security.Subject, p params, page P
 	for _, v := range p.priorities {
 		priorities = append(priorities, string(v))
 	}
+	origins := make([]string, 0, len(p.origins))
+	for _, v := range p.origins {
+		origins = append(origins, string(v))
+	}
 	options := append(sc.assigneeChoices(who, people, Summary{}), components.SelectOption{Value: AssigneeNone, Label: sc.Labels.T("filter.unassigned")})
 	return TeamIndexPageData{
-		Screen: sc, Rows: rows, Query: p.search, Statuses: statuses, Priorities: priorities, Assignee: p.assignee, Space: p.space,
+		Screen: sc, Rows: rows, Query: p.search, Statuses: statuses, Priorities: priorities, Origins: origins, Assignee: p.assignee, Space: p.space,
 		SortKey: p.sort, SortDir: p.dir, Hidden: p.hidden, URL: u.TeamIndex(), VisitorsURL: u.TeamVisitors(),
 		Pager:       pager(len(rows), page.Total, m.cfg.PageSize, page.Page, u.TeamIndex(), listQueryValues(p)),
 		CurrentPage: page.Page, Pages: page.Pages, Total: page.Total, PerPage: m.cfg.PageSize,
-		StatusOptions: sc.StatusOptions(), PriorityOptions: sc.PriorityOptions(), AssigneeOptions: options,
+		StatusOptions: sc.StatusOptions(), PriorityOptions: sc.PriorityOptions(), OriginOptions: sc.OriginOptions(), AssigneeOptions: options,
 	}
 }
 
@@ -188,6 +192,12 @@ func listQueryValues(p params) url.Values {
 	}
 	for _, v := range p.priorities {
 		values.Add("priority", string(v))
+	}
+	for _, v := range p.origins {
+		values.Add("origin", string(v))
+	}
+	if p.space != "" {
+		values.Set("space", p.space)
 	}
 	if p.assignee != "" {
 		values.Set("assignee", p.assignee)

@@ -1,5 +1,36 @@
 # Upgrade Guide
 
+## v0.4.0
+
+Backward compatible, from v0.3.0 and from v0.2.1: nothing a caller wrote
+changes, and no migration is added.
+
+- **Channel filter.** A project that published the views republishes the team's
+  list to get the filter and the column:
+  `aru vendor:publish --tag=view --apply`, then `aru view:build`. One that does
+  not keeps the old list. The ticket's channel is `Ticket.Origin`; rename its
+  labels in the application's catalogue (`ticket.origin.web`,
+  `ticket.origin.contact_form`) to "Painel" and "Site".
+- **A guard for one side.** `Config.CustomerMiddleware` runs on the customer's
+  routes only. An application that scoped a request to the customer's
+  organization by branching on the path inside `Middleware` can move that guard
+  here.
+- **Assigning to the whole team.** Without `Config.Directory` a member of the
+  team can give a ticket only to themselves. To list the members of an
+  administrators' group:
+
+```go
+dir, err := teamdir.New(teamdir.Config{
+	Permission: permissionModule.Service(), // the application's own
+	Realm:      cfg.Auth.Tenant,            // the same as ticket.Config.TeamTenant
+	Group:      "administradores",
+	Names: func(ctx context.Context, id string) (ticket.Person, error) {
+		// the application knows its users' names; ticket.ErrNoAccount for nobody
+	},
+})
+// ticket.Config{Directory: dir, ...}
+```
+
 ## v0.3.0
 
 Backward compatible: an application that changes nothing behaves as before.

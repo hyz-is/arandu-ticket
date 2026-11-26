@@ -35,7 +35,7 @@ func NewTeamService(db *data.DB, cfg Config) *TeamService {
 var sortableTeam = map[string]string{
 	"": "updated_at", "updated_at": "updated_at", "created_at": "created_at", "number": "number",
 	"subject": "subject", "status": "status", "requester": "requester_name", "assignee": "assignee_name",
-	"tenant": "tenant_id", "priority": "priority",
+	"tenant": "tenant_id", "priority": "priority", "origin": "origin",
 }
 
 // priorityOrder sorts the priorities by how urgent they are and not by how
@@ -43,8 +43,8 @@ var sortableTeam = map[string]string{
 const priorityOrder = "CASE priority WHEN 'urgent' THEN 3 WHEN 'high' THEN 2 WHEN 'normal' THEN 1 ELSE 0 END"
 
 // List returns a page of the tickets of every space: searched by number,
-// subject and requester, filtered by status, priority, assignee and space, and
-// ordered by the server.
+// subject and requester, filtered by status, priority, origin, assignee and
+// space, and ordered by the server.
 func (s *TeamService) List(ctx context.Context, actor security.Subject, q TeamQuery) (Page, error) {
 	g, err := security.Authorize(ctx, s.policy, actor, TicketViewAll, Ticket{})
 	if err != nil {
@@ -65,6 +65,13 @@ func (s *TeamService) List(ctx context.Context, actor security.Subject, q TeamQu
 		}
 		priorities = append(priorities, string(p))
 	}
+	origins := make([]any, 0, len(q.Origins))
+	for _, o := range q.Origins {
+		if !o.Valid() {
+			return Page{}, s.labels.invalid("origin", "origin")
+		}
+		origins = append(origins, string(o))
+	}
 	if q.Tenant != "" && !security.ValidTenant(q.Tenant) {
 		return Page{}, s.labels.invalid("tenant", "tenant")
 	}
@@ -77,6 +84,9 @@ func (s *TeamService) List(ctx context.Context, actor security.Subject, q TeamQu
 		}
 		if len(priorities) > 0 {
 			b = b.WhereIn("priority", priorities)
+		}
+		if len(origins) > 0 {
+			b = b.WhereIn("origin", origins)
 		}
 		switch q.Assignee {
 		case "":

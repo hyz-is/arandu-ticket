@@ -110,6 +110,14 @@ const (
 	OriginWhatsApp Origin = "whatsapp"
 )
 
+// Origins are every origin, in the order the screens list them. The origin is
+// the channel a ticket came in by: the application's panel (OriginWeb), its
+// public contact form (OriginContactForm), an e-mail it received (OriginEmail)
+// or a WhatsApp conversation (OriginWhatsApp). A deployment that calls them
+// otherwise -- "Painel", "Site" -- renames the labels in its own catalogue
+// (origin.web, origin.contact_form), and the values stay.
+var Origins = []Origin{OriginWeb, OriginContactForm, OriginEmail, OriginWhatsApp}
+
 // Valid reports whether the origin is one of the four.
 func (o Origin) Valid() bool {
 	return o == OriginWeb || o == OriginContactForm || o == OriginEmail || o == OriginWhatsApp

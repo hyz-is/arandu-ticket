@@ -193,7 +193,7 @@ func (m *Module) teamIndex(ctx *fhttp.Context) error {
 		params.assignee = who.ID
 	}
 	page, err := m.team.List(ctx.Ctx(), who, TeamQuery{
-		Search: params.search, Statuses: params.statuses, Priorities: params.priorities, Assignee: params.assignee,
+		Search: params.search, Statuses: params.statuses, Priorities: params.priorities, Origins: params.origins, Assignee: params.assignee,
 		Tenant: params.space, Sort: params.sort, Dir: params.dir, Page: params.page, PerPage: m.cfg.PageSize,
 	})
 	if err != nil {
@@ -347,6 +347,7 @@ type params struct {
 	search     string
 	statuses   []Status
 	priorities []Priority
+	origins    []Origin
 	assignee   string
 	space      string
 	hidden     []string
@@ -370,6 +371,11 @@ func listParams(ctx *fhttp.Context, allowed map[string]string) params {
 	for _, raw := range query["priority"] {
 		if v := Priority(strings.TrimSpace(raw)); v.Valid() {
 			p.priorities = append(p.priorities, v)
+		}
+	}
+	for _, raw := range query["origin"] {
+		if v := Origin(strings.TrimSpace(raw)); v.Valid() {
+			p.origins = append(p.origins, v)
 		}
 	}
 	if sort := query.Get("sort"); sort != "" {
