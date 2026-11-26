@@ -55,7 +55,7 @@ func granted(tenant, id string, actions ...security.Action) security.Subject {
 func TestThePoliciesDenyEveryActionByDefault(t *testing.T) {
 	t.Parallel()
 
-	for _, action := range append(slices.Clone(everyAction), ticket.TicketOpenFromContact) {
+	for _, action := range append(slices.Clone(everyAction), systemActions...) {
 		for name, policy := range map[string]security.Policy[ticket.Ticket]{
 			"customer": ticket.TicketPolicy{},
 			"team":     ticket.TeamPolicy{Realm: "platform"},
@@ -70,21 +70,30 @@ func TestThePoliciesDenyEveryActionByDefault(t *testing.T) {
 	}
 }
 
-func TestNobodyHoldsTheContactFormsAction(t *testing.T) {
+// systemActions are the actions no person holds: each is issued by one function
+// of grants.go, after the application decided.
+var systemActions = []security.Action{ticket.TicketOpenFromContact, ticket.TicketOpenFromVisitor, ticket.TicketAdopt}
+
+func TestNobodyHoldsTheSystemsActions(t *testing.T) {
 	t.Parallel()
 
-	// Opening from the contact form is the system's, issued by the one function
-	// that does. A subject who carries the action is still refused it by both
-	// policies, so no person can ask for it.
-	holder := granted("platform", "u", ticket.TicketOpenFromContact)
-	for _, policy := range []security.Policy[ticket.Ticket]{ticket.TicketPolicy{}, ticket.TeamPolicy{Realm: "platform"}} {
-		if _, err := security.Authorize(context.Background(), policy, holder, ticket.TicketOpenFromContact, ticket.Ticket{}); !errors.Is(err, security.ErrForbidden) {
-			t.Fatalf("a policy allowed a person the contact form's action: %v", err)
+	// Opening from the contact form, opening for a visitor and adopting a
+	// visitor's tickets are the system's, each issued by the one function that
+	// does. A subject who carries the action, in any tenant, is still refused it
+	// by both policies, so no person can ask for it.
+	for _, action := range systemActions {
+		for _, tenant := range []string{"platform", "acme", "visitors"} {
+			holder := granted(tenant, "u", action)
+			for _, policy := range []security.Policy[ticket.Ticket]{ticket.TicketPolicy{}, ticket.TeamPolicy{Realm: "platform"}} {
+				if _, err := security.Authorize(context.Background(), policy, holder, action, ticket.Ticket{}); !errors.Is(err, security.ErrForbidden) {
+					t.Fatalf("a policy allowed a person of %s the system's %s: %v", tenant, action, err)
+				}
+			}
 		}
-	}
-	for _, list := range [][]security.Action{customerActions, teamActions} {
-		if slices.Contains(list, ticket.TicketOpenFromContact) {
-			t.Fatal("the contact form's action is offered to a catalogue")
+		for _, list := range [][]security.Action{customerActions, teamActions} {
+			if slices.Contains(list, action) {
+				t.Fatalf("the system's %s is offered to a catalogue", action)
+			}
 		}
 	}
 }
@@ -312,6 +321,33 @@ func TestTheServicesRefuseBeforeReachingTheModel(t *testing.T) {
 	}
 	if _, _, err := team.Attachment(ctx, nobodyOfTheTeam, "t-1", "a-1"); !errors.Is(err, security.ErrForbidden) {
 		t.Errorf("team Attachment reached the Model before the policy refusal: %v", err)
+	}
+
+	// Without a visitors' queue there is nothing to write to or adopt from, and
+	// the answer comes before the Model.
+	if _, err := customers.OpenFromVisitor(ctx, ticket.VisitorInput{Email: "v@x.test", Subject: "a", Body: "b"}); !errors.Is(err, ticket.ErrVisitorsOff) {
+		t.Errorf("OpenFromVisitor without a queue answered %v, want ErrVisitorsOff", err)
+	}
+	if _, err := customers.AdoptVisitorTickets(ctx, ticket.Account{UserID: "u", Tenant: "acme", Email: "v@x.test"}); !errors.Is(err, ticket.ErrVisitorsOff) {
+		t.Errorf("AdoptVisitorTickets without a queue answered %v, want ErrVisitorsOff", err)
+	}
+	// With one, an input that cannot be one, and an account that cannot adopt,
+	// are refused before the Model too.
+	visitors := ticket.NewTicketService(nil, ticket.Config{TeamTenant: "platform", VisitorTenant: "visitors"})
+	if _, err := visitors.OpenFromVisitor(ctx, ticket.VisitorInput{Origin: ticket.OriginWeb, Subject: "a", Body: "b"}); err == nil {
+		t.Error("OpenFromVisitor took an input that cannot be one")
+	}
+	for name, account := range map[string]ticket.Account{
+		"no user":                  {Tenant: "acme", Email: "v@x.test"},
+		"no e-mail":                {UserID: "u", Tenant: "acme"},
+		"the queue":                {UserID: "u", Tenant: "visitors", Email: "v@x.test"},
+		"the team":                 {UserID: "u", Tenant: "platform", Email: "v@x.test"},
+		"no tenant":                {UserID: "u", Tenant: "", Email: "v@x.test"},
+		"a tenant that is not one": {UserID: "u", Tenant: "Bad/Tenant", Email: "v@x.test"},
+	} {
+		if _, err := visitors.AdoptVisitorTickets(ctx, account); err == nil {
+			t.Errorf("AdoptVisitorTickets took an account with %s", name)
+		}
 	}
 }
 
@@ -562,10 +598,12 @@ func TestTheConfigurationRefusesWhatCannotWork(t *testing.T) {
 	t.Parallel()
 
 	for name, cfg := range map[string]ticket.Config{
-		"no team tenant":     {},
-		"relative prefix":    {TeamTenant: "platform", Prefix: "tickets"},
-		"page size too big":  {TeamTenant: "platform", PageSize: ticket.MaxPageSize + 1},
-		"negative page size": {TeamTenant: "platform", PageSize: -1},
+		"no team tenant":                            {},
+		"relative prefix":                           {TeamTenant: "platform", Prefix: "tickets"},
+		"page size too big":                         {TeamTenant: "platform", PageSize: ticket.MaxPageSize + 1},
+		"negative page size":                        {TeamTenant: "platform", PageSize: -1},
+		"a visitors' queue that cannot be a tenant": {TeamTenant: "platform", VisitorTenant: "Visitors Queue"},
+		"the visitors' queue in the team's tenant":  {TeamTenant: "platform", VisitorTenant: "platform"},
 	} {
 		if err := cfg.Validate(); err == nil {
 			t.Errorf("the configuration with %s was accepted", name)
@@ -576,6 +614,9 @@ func TestTheConfigurationRefusesWhatCannotWork(t *testing.T) {
 	// team's tenant, and no other: every customer's tenant comes from the Grant.
 	if err := (ticket.Config{TeamTenant: "platform"}).Validate(); err != nil {
 		t.Fatalf("the smallest configuration was refused: %v", err)
+	}
+	if err := (ticket.Config{TeamTenant: "platform", VisitorTenant: "visitors"}).Validate(); err != nil {
+		t.Fatalf("a configuration with a visitors' queue was refused: %v", err)
 	}
 }
 

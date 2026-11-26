@@ -61,6 +61,16 @@ func (u URLs) Attachment(id, attachment string) string {
 // TeamIndex is the team's list.
 func (u URLs) TeamIndex() string { return u.cfg.TeamPrefix }
 
+// TeamVisitors is the team's list narrowed to the visitors' queue, through the
+// list's space filter. Empty when Config.VisitorTenant is, because there is no
+// queue to narrow to.
+func (u URLs) TeamVisitors() string {
+	if u.cfg.VisitorTenant == "" {
+		return ""
+	}
+	return u.cfg.TeamPrefix + "?" + url.Values{"space": {u.cfg.VisitorTenant}}.Encode()
+}
+
 // TeamShow is one conversation, for the team.
 func (u URLs) TeamShow(id string) string { return u.show(u.cfg.TeamPrefix, id) }
 
@@ -238,8 +248,12 @@ type TicketRow struct {
 	Priority, PriorityKey       string
 	Requester, RequesterEmail   string
 	Assignee, AssigneeID        string
-	Space, Origin               string
-	Created, Updated            string
+	// Space is the space as the team reads it: the tenant, or the name of the
+	// visitors' queue for a visitor's ticket. SpaceKey is the tenant itself.
+	Space, SpaceKey, Origin string
+	// Visitor says somebody with no account opened the ticket.
+	Visitor          bool
+	Created, Updated string
 	// CreatedSort and UpdatedSort order like the instants they stand for.
 	CreatedSort, UpdatedSort string
 	URL                      string
@@ -255,13 +269,17 @@ func (s Screen) ticketRow(t Summary, open string) TicketRow {
 	if requester == "" {
 		requester = t.RequesterID
 	}
+	space := t.Tenant
+	if t.Visitor {
+		space = s.Labels.T("screen.visitor_space")
+	}
 	return TicketRow{
 		ID: t.ID, Code: t.Code(), Subject: t.Subject, Category: t.Category,
 		Status: s.Labels.Status(t.Status), StatusKey: string(t.Status),
 		Priority: s.Labels.Priority(t.Priority), PriorityKey: string(t.Priority),
 		Requester: requester, RequesterEmail: t.RequesterEmail,
 		Assignee: t.AssigneeName, AssigneeID: t.AssigneeID,
-		Space: t.Tenant, Origin: s.Labels.Origin(t.Origin),
+		Space: space, SpaceKey: t.Tenant, Visitor: t.Visitor, Origin: s.Labels.Origin(t.Origin),
 		Created: s.When(t.CreatedAt), Updated: s.When(t.UpdatedAt),
 		CreatedSort: t.CreatedAt.UTC().Format(time.RFC3339Nano), UpdatedSort: t.UpdatedAt.UTC().Format(time.RFC3339Nano),
 		URL:    open,
@@ -372,8 +390,11 @@ type TeamIndexPageData struct {
 	SortKey    string
 	SortDir    string
 	// Hidden are the keys of the columns the reader switched off.
-	Hidden          []string
-	URL             string
+	Hidden []string
+	URL    string
+	// VisitorsURL is the list narrowed to the visitors' queue, empty when
+	// visitors are off.
+	VisitorsURL     string
 	Pager           components.Paginator
 	CurrentPage     int
 	Pages, Total    int

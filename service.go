@@ -189,10 +189,15 @@ func (s *TicketService) seen(ctx context.Context, g security.Grant, scope viewer
 }
 
 // Open opens a ticket for the signed-in customer, in their own space, with the
-// first message and the files that came with it.
+// first message and the files that came with it. OpenRequest.Origin names the
+// channel when it is not the screens; the subject is the requester either way.
 func (s *TicketService) Open(ctx context.Context, actor security.Subject, in OpenRequest, uploads []Upload) (*Ticket, error) {
 	if errs := s.validateOpen(in, len(uploads)); errs.Any() {
 		return nil, errs
+	}
+	origin := in.Origin
+	if origin == "" {
+		origin = OriginWeb
 	}
 	proposed := Ticket{Subject: trimmed(in.Subject)}
 	g, err := security.Authorize(ctx, s.policy, actor, TicketCreate, proposed)
@@ -202,12 +207,12 @@ func (s *TicketService) Open(ctx context.Context, actor security.Subject, in Ope
 	who := s.person(ctx, data.Tenant(g), actor.ID)
 	created, err := s.create(ctx, g, draft{
 		Subject: trimmed(in.Subject), Category: trimmed(in.Category), Body: trimmed(in.Body),
-		Origin: OriginWeb, Requester: who, Uploads: uploads,
+		Origin: origin, Requester: who, Uploads: uploads,
 	})
 	if err != nil {
 		return nil, err
 	}
-	if err := s.record(ctx, g, actor, ActivityTicketOpened, created.ticket, map[string]any{"origin": string(OriginWeb), "files": len(created.files)}); err != nil {
+	if err := s.record(ctx, g, actor, ActivityTicketOpened, created.ticket, map[string]any{"origin": string(origin), "files": len(created.files)}); err != nil {
 		return nil, err
 	}
 	s.notify(ctx, EventOpened, summaryOf(created.ticket), messageViewOf(created.message, created.files))
@@ -414,6 +419,13 @@ func (c *core) validateOpen(in OpenRequest, files int) validation.Errors {
 	}
 	if utf8.RuneCountInString(trimmed(in.Category)) > maxCategoryLen {
 		errs.Add("category", c.labels.message("max", map[string]any{"max": maxCategoryLen}))
+	}
+	// A customer's own channels: the screens, an e-mail, WhatsApp. The contact
+	// form is OpenFromContact's, and a value that is no origin is refused.
+	switch in.Origin {
+	case "", OriginWeb, OriginEmail, OriginWhatsApp:
+	default:
+		errs.Add("origin", c.labels.message("origin"))
 	}
 	c.validateBody(errs, in.Body, files)
 	return errs

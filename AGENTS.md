@@ -49,10 +49,10 @@ this package must prove about itself it proves in its own suite or nowhere.
 
 | | measured with |
 | --- | --- |
-| 22 Go files at the root, one per role, four of them generated | `ls *.go \| wc -l` |
+| 23 Go files at the root, one per role, four of them generated | `ls *.go \| wc -l` |
 | 1 internal package (`internal/platform`), the table that reads every tenant | `find internal -name '*.go'` |
 | 16 routes, 8 for each side | `grep -c '{"ticket\.' config.go` |
-| 10 actions: 5 customer, 4 team, 1 nobody holds | `grep -cE '^\t[A-Za-z]+ security.Action = ' policy.go` |
+| 12 actions: 5 customer, 4 team, 3 nobody holds | `grep -cE '^\t[A-Za-z]+ security.Action = ' policy.go` |
 | 5 views, 2 locales | `find resources -type f` |
 | 1 migration, creating 4 tables | `grep -c 'Create(ctx' migrations.go` |
 
@@ -68,9 +68,10 @@ policy.go        TicketPolicy (customer) and TeamPolicy (team)
 service.go       TicketService: the customer's use cases
 team.go          TeamService: the team's use cases
 contact.go       OpenFromContact
+visitor.go       OpenFromVisitor, AdoptVisitorTickets: the queue of people with no account
 compose.go       storing a ticket, a message and its files, and the numbers
 attachments.go   checking and keeping files on the application's Disk
-grants.go        the three Grants issued without a signed-in customer
+grants.go        the five Grants issued without a signed-in customer
 activity.go      the activity log and the notifier
 handlers.go      the controllers of both sides
 pages.go         what the screens are handed
@@ -130,10 +131,10 @@ one of them is not merged, whatever else it improves.
 3. **The tenant comes from `data.Tenant(g)`**, on every write.
    `TestTheTenantIsWrittenOnlyFromTheGrant` and `TestNoTenantIsReadOutOfTheRequest`
    hold both halves.
-4. **A Grant without a signed-in customer is built in `grants.go` alone**, three
+4. **A Grant without a signed-in customer is built in `grants.go` alone**, five
    of them, each marked `//arandu:system-grant` with what decided first. The
    team's list is the one read that crosses tenants, through `internal/platform`,
-   and only after `TeamPolicy` answered. Do not add a fourth without a decision.
+   and only after `TeamPolicy` answered. Do not add a sixth without a decision.
 5. **The customer never reads an internal note, nor the team's triage.** The
    statement leaves notes out, the response drops them again, and the file of a
    note is not found. `TestAnInternalNoteIsInvisibleToTheCustomerInEveryWay`.

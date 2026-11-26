@@ -70,8 +70,9 @@ const (
 // It names no tenant for the customers, and that is deliberate. Every route
 // sits behind RequireAuth, so the tenant of every customer statement is the one
 // the Grant carries, from the session of whoever is asking; a tenant written
-// here would be a second place for one to come from. The one tenant it does
-// name is the team's own, TeamTenant, because the team is not a customer.
+// here would be a second place for one to come from. The tenants it does name
+// are the team's own, TeamTenant, because the team is not a customer, and the
+// visitors' queue, VisitorTenant, because a visitor is nobody's customer yet.
 type Config struct {
 	// TeamTenant is the tenant the platform's own team signs in to: the realm of
 	// the operator console. A team member is a subject of this tenant who holds
@@ -79,6 +80,16 @@ type Config struct {
 	// subject whatever actions they carry. It comes from the application's own
 	// configuration, never from a request. Required.
 	TeamTenant string
+
+	// VisitorTenant is the tenant the tickets of people with no account live
+	// in: the visitors' queue, which OpenFromVisitor writes to and only the team
+	// reads. No customer's subject is of this tenant, so the customer's policy
+	// refuses every one of its tickets. It has to be a valid tenant other than
+	// TeamTenant, and one the application never gives to an account. It comes
+	// from the application's own configuration, never from a request. Empty
+	// turns visitors off: OpenFromVisitor and AdoptVisitorTickets answer
+	// ErrVisitorsOff.
+	VisitorTenant string
 
 	// Prefix is the path the customer's routes are mounted under. Empty means
 	// DefaultPrefix.
@@ -294,6 +305,14 @@ const reservedPrefix = "/_arandu"
 func (c Config) Validate() error {
 	if !security.ValidTenant(c.TeamTenant) {
 		return fmt.Errorf("ticket: Config.TeamTenant is %q, which cannot be a tenant: pass the tenant the platform team signs in to (lowercase letters, digits, - and _, up to 64 characters)", c.TeamTenant)
+	}
+	if c.VisitorTenant != "" {
+		if !security.ValidTenant(c.VisitorTenant) {
+			return fmt.Errorf("ticket: Config.VisitorTenant is %q, which cannot be a tenant: pass the tenant the visitors' tickets live in (lowercase letters, digits, - and _, up to 64 characters), or leave it empty to turn visitors off", c.VisitorTenant)
+		}
+		if c.VisitorTenant == c.TeamTenant {
+			return fmt.Errorf("ticket: Config.VisitorTenant is %q, the team's own tenant: the visitors' queue is a tenant of its own, which no subject signs in to", c.VisitorTenant)
+		}
 	}
 	for _, prefix := range []struct{ name, value string }{{"Prefix", c.Prefix}, {"TeamPrefix", c.TeamPrefix}} {
 		if prefix.value == "" {

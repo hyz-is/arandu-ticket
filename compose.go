@@ -19,6 +19,11 @@ type draft struct {
 	// opened inside Config.ContactWindow with the same key is answered instead
 	// of a new one.
 	OriginKey string
+	// Thread says OriginKey names a conversation and not what a form said: it
+	// is stored for the next message of the conversation to find, and an
+	// opening that carries it is never answered with an earlier ticket -- the
+	// caller already looked for the open one, and a closed one is no twin.
+	Thread    bool
 	Requester Person
 	Uploads   []Upload
 }
@@ -58,7 +63,7 @@ func (c *core) create(ctx context.Context, g security.Grant, d draft) (created, 
 	}
 	var out created
 	err = database.Transaction(ctx, c.db, func(ctx context.Context) error {
-		if d.OriginKey != "" {
+		if d.OriginKey != "" && !d.Thread {
 			// The counter's row is the lock: two requests that carry the same
 			// words queue here, and the second finds the first one's ticket.
 			if err := c.lock(ctx, g, now); err != nil {
@@ -274,7 +279,7 @@ func (c *core) conversation(ctx context.Context, g security.Grant, t *Ticket, in
 	if err != nil {
 		return Conversation{}, err
 	}
-	out := Conversation{Ticket: summaryOf(t), Messages: make([]MessageView, 0, len(read))}
+	out := Conversation{Ticket: c.mark(summaryOf(t)), Messages: make([]MessageView, 0, len(read))}
 	for _, m := range read {
 		out.Messages = append(out.Messages, messageViewOf(m, files))
 	}

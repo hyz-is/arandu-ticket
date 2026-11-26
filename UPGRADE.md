@@ -1,6 +1,62 @@
 # Upgrade Guide
 
-## Unreleased
+## v0.3.0
+
+Backward compatible: an application that changes nothing behaves as before.
+Visitors are off until `Config.VisitorTenant` is set, and the new `Origin`
+value only appears when an application asks for it.
+
+### Turn visitors on (optional)
+
+Pick a tenant for the visitors' queue that the application never gives to an
+account and that is not `TeamTenant`, read it from configuration, and pass it:
+
+```go
+ticket.Config{TeamTenant: "platform", VisitorTenant: "visitors"}
+```
+
+Then call `OpenFromVisitor` from the public form for an e-mail that has no
+account (`OpenFromContact` answered `ErrNoAccount`), or from a WhatsApp
+conversation with somebody the application does not know, with a `Thread`. The
+team reads the queue in its own list, with the `space` filter or
+`URLs.TeamVisitors`. Put a captcha or a rate limit in front of a public form:
+there is no session behind the call.
+
+Call `AdoptVisitorTickets` only when the person proved the e-mail (the link of
+the confirmation e-mail was opened), never with an address somebody typed.
+
+### Nothing to migrate
+
+No migration is added: the visitors' tickets live in the existing tables under
+the queue's tenant.
+
+### The team's views
+
+The team's list and conversation draw a visitor badge and a link to the
+queue. A project that published the views republishes them:
+
+```sh
+aru vendor:publish --tag=view
+aru vendor:publish --tag=view --apply
+aru view:build
+```
+
+A project that does not republish keeps working and simply does not show the
+badge.
+
+### Where visitors' entries land in the log
+
+The log of a visitor's act has the system as its causer, and the entry of an
+adoption is written in the account's space with the account as its causer.
+An application that reads `ticket` entries by causer sees the new value
+`system`.
+
+## v0.2.1
+
+Raises the minimum versions of Hesape, Framework and Kyse. Nothing else.
+
+## v0.2.0
+
 
 ### The lists are drawn as Kyse's data table now draws them
 

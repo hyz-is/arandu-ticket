@@ -21,11 +21,17 @@ func ticketsTable(data IndexData) components.DataTableProps {
 		if assignee == "" {
 			assignee = "—"
 		}
+		// A visitor's ticket wears the queue's badge where the space would be: it
+		// is in no customer's space.
+		space := components.TableCell{Text: t.Space}
+		if t.Visitor {
+			space = components.TableCell{HTML: components.Badge(components.BadgeProps{Label: data.Labels.T("screen.visitor_badge"), Variant: "outline"})}
+		}
 		rows = append(rows, components.TableRow{Key: t.ID, Cells: []components.TableCell{
 			{Text: t.Code},
 			{HTML: components.Link(components.LinkProps{Label: t.Subject, URL: t.URL, Variant: "hover"})},
 			{Text: t.Requester},
-			{Text: t.Space},
+			space,
 			{HTML: components.Badge(components.BadgeProps{Label: t.Priority, Variant: ticket.PriorityVariant(t.PriorityKey)})},
 			{HTML: components.Badge(components.BadgeProps{Label: t.Status, Variant: ticket.StatusVariant(t.StatusKey)})},
 			{Text: assignee},
@@ -65,9 +71,14 @@ func ticketsTable(data IndexData) components.DataTableProps {
 
 @section('content')
 <section class="mx-auto w-full max-w-7xl min-w-0 px-4 py-8 sm:px-6 lg:px-8">
-	<header>
-		<h1 class="text-2xl font-semibold tracking-tight">{{ .Labels.T("screen.team_index_title") }}</h1>
-		<p class="text-muted-foreground mt-1 max-w-prose text-sm">{{ .Labels.T("screen.team_index_lead") }}</p>
+	<header class="flex flex-wrap items-end justify-between gap-3">
+		<div class="min-w-0">
+			<h1 class="text-2xl font-semibold tracking-tight">{{ .Labels.T("screen.team_index_title") }}</h1>
+			<p class="text-muted-foreground mt-1 max-w-prose text-sm">{{ .Labels.T("screen.team_index_lead") }}</p>
+		</div>
+		@if(.VisitorsURL != "")
+			<a class="btn" data-variant="outline" data-size="sm" href="{{ .VisitorsURL }}">{{ .Labels.T("screen.visitors_link") }}</a>
+		@endif
 	</header>
 
 	<div class="mt-6 min-w-0">{!! components.DataTable(ticketsTable(.)) !!}</div>

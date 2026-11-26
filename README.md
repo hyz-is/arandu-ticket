@@ -244,6 +244,66 @@ says: anybody can type an address. The ticket carries its origin
 application that must not take a form from just anybody puts its own check (a
 captcha, a rate limit) in front of the call.
 
+## People with no account
+
+When the e-mail on the form belongs to nobody, `OpenFromContact` answers
+`ErrNoAccount` and creates nothing. With `Config.VisitorTenant` set, the
+application can keep what the person said instead, in a queue of its own that
+only the team reads:
+
+```go
+ticketModule, err := ticket.New(ticket.Config{TeamTenant: "platform", VisitorTenant: "visitors", /* ... */}, db, sessions)
+
+result, err := ticketModule.Tickets().OpenFromVisitor(ctx, ticket.VisitorInput{
+	Name: in.Name, Email: in.Email, Subject: in.Subject, Body: in.Message,
+})
+// result.Ticket is in the visitors' queue; result.Duplicate says the same
+// words had already been received inside Config.ContactWindow.
+```
+
+- **The queue is a tenant of its own.** No customer's subject belongs to it, so
+  the customer's policy refuses every ticket in it. The team lists it with the
+  `space` filter (`URLs.TeamVisitors`) and answers it as any ticket; the answer
+  reaches the Notifier as `EventTeamReplied`, with the visitor's e-mail as the
+  requester's, for the application to send. `Event.Ticket.Visitor` says the ticket
+  is a visitor's.
+- **The requester is `visitor:` and a digest** of the e-mail (or of the thread),
+  with the name and the e-mail the person gave.
+- **Channels.** `VisitorInput.Origin` is `contact_form` when empty, or `email`
+  or `whatsapp`. For a WhatsApp conversation pass the number as `Thread`: the next
+  message joins the ticket that is not closed (`result.Appended`) and a closed
+  ticket opens a new one. The thread is stored only as a digest. A WhatsApp
+  visitor needs a `Name` or an `Email`.
+- **There is no session behind the call**, so the sender is who the channel says
+  they are. Put a captcha or a rate limit in front of a public form.
+
+### Linking the ticket to the account
+
+When the person signs up and proves the e-mail (the link of the confirmation
+e-mail was opened), the application moves what they had written into their own
+space:
+
+```go
+moved, err := ticketModule.Tickets().AdoptVisitorTickets(ctx, ticket.Account{
+	UserID: user.ID, Tenant: user.WorkspaceID, Name: user.Name, Email: user.Email,
+})
+```
+
+Call it only with an e-mail the person proved: anybody can type anybody's
+address on a form, and the tickets carry what the real owner wrote. Each ticket
+takes the next number of the account's space, keeps its messages and the team's
+triage, and gains a line the customer reads saying the contact was linked to the
+account. A ticket that carries a file stays in the queue (its bytes are kept
+under the queue's prefix) and is counted in the log. Calling it twice moves
+nothing the second time.
+
+### A signed-in customer on another channel
+
+`OpenRequest.Origin` lets an application that acts for a signed-in customer on
+its own channel (an assistant on WhatsApp) say so: `Tickets().Open(ctx, subject,
+ticket.OpenRequest{Origin: ticket.OriginWhatsApp, ...}, nil)`. The screens always
+open `OriginWeb`, and `OriginContactForm` is refused there.
+
 ## Publish the views
 
 This package carries the markup of its own five pages and hands it over instead
@@ -301,6 +361,7 @@ own container.
 | field | required | meaning |
 | --- | --- | --- |
 | `TeamTenant` | yes | the tenant the platform team signs in to. |
+| `VisitorTenant` | no | the tenant of the visitors' queue, for people with no account. Empty turns visitors off (`ErrVisitorsOff`). Not `TeamTenant`, and never an account's. |
 | `Prefix` | no | where the customer's routes are mounted. Defaults to `/tickets`. |
 | `TeamPrefix` | no | where the team's routes are mounted. Defaults to `/admin/tickets`. |
 | `Paths` | no | the segments of every route. Empty fields keep `DefaultPaths`; `PortuguesePaths` is the set in pt-BR. |
@@ -412,7 +473,12 @@ there is one:
 
 `ticket.opened`, `ticket.replied`, `ticket.status_changed`,
 `ticket.priority_changed`, `ticket.assigned`, `ticket.closed`,
-`ticket.reopened`, `ticket.note_added`, and `ticket.attachment_read`.
+`ticket.reopened`, `ticket.note_added`, `ticket.attachment_read`, and, for
+visitors, `ticket.visitor_replied` (a message added to the open ticket of a
+thread) and `ticket.adopted` (a ticket moved into an account's space).
+
+A visitor is nobody's user, so the entries of their tickets have the system as
+causer; an adoption is written in the account's space with the account as causer.
 
 An act of the team is written in the customer's tenant, with the team member as
 its causer, so it is in the log of the space it happened in and in the platform
@@ -472,8 +538,9 @@ views.go         the files the application takes ownership of
 
 ## What is not here
 
-- E-mail: the package sends none and reads none. `OriginEmail` is a value an
-  application can open a ticket with; receiving mail is the application's.
+- E-mail and WhatsApp: the package sends none and reads none. `OriginEmail` and
+  `OriginWhatsApp` are values an application can open a ticket with; receiving
+  and sending on those channels is the application's.
 - SLAs, ticket merging, categories as a managed list, canned replies, and
   attachments on the contact form.
 - A second way to decide who may do what, a local role table or a balance:

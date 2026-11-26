@@ -156,6 +156,10 @@ func main() {
 		URL: "/painel/chamados/t1"}
 	teamRow := row
 	teamRow.URL = "/admin/chamados/t1"
+	visitorRow := ticket.TicketRow{ID: "t2", Code: "#000007", Subject: "Quero contratar", Status: "Aberto", StatusKey: "open",
+		Priority: "Normal", PriorityKey: "normal", Requester: "Bia Lima", RequesterEmail: "bia@example.test", Space: "Visitantes",
+		SpaceKey: "visitors", Visitor: true, Origin: "WhatsApp", Created: "26/10/2026 14:00", Updated: "26/10/2026 14:00",
+		URL: "/admin/chamados/t2"}
 	messages := []ticket.MessageRow{
 		{ID: "m1", Author: "Ana Souza", Role: "Cliente", RoleKey: "customer", When: "26/10/2026 12:00", WhenISO: "2026-10-26T15:00:00Z",
 			Body: template.HTML("<p>Parou ontem.</p>"), Files: []ticket.FileRow{{Name: "tela.png", Type: "image/png", Size: "40 B", URL: "/painel/chamados/t1/anexos/f1"}}},
@@ -203,7 +207,11 @@ func main() {
 		{ticket.ViewTeamIndex, ticket.TeamIndexPageData{Screen: sc, Rows: []ticket.TicketRow{teamRow}, URL: "/admin/chamados",
 			CurrentPage: 1, Pages: 3, Total: 60, StatusOptions: options("open"), PriorityOptions: options("urgent"), AssigneeOptions: options("none")},
 			[]string{"Chamados dos clientes", "#000123", "Ana Souza", "acme", "Urgente", "Aguardando cliente", "Rita", "/admin/chamados/t1",
-				"Buscar por número, assunto, nome ou e-mail", "Prioridade", "Responsável"}, nil},
+				"Buscar por número, assunto, nome ou e-mail", "Prioridade", "Responsável"}, []string{"Visitante", "Fila de visitantes"}},
+		{ticket.ViewTeamIndex, ticket.TeamIndexPageData{Screen: sc, Rows: []ticket.TicketRow{teamRow, visitorRow}, URL: "/admin/chamados",
+			VisitorsURL: "/admin/chamados?space=visitors", CurrentPage: 1, Pages: 1, Total: 2},
+			[]string{"#000007", "Quero contratar", "Bia Lima", "Visitante", "Fila de visitantes", "/admin/chamados?space=visitors", "/admin/chamados/t2"},
+			[]string{">visitors<"}},
 		{ticket.ViewTeamShow, ticket.TeamShowPageData{Screen: sc, Ticket: row, Messages: append(append([]ticket.MessageRow(nil), messages...), note),
 			BackURL: "/admin/chamados", ReplyURL: "/admin/chamados/t1/respostas", NoteURL: "/admin/chamados/t1/notas",
 			StatusURL: "/admin/chamados/t1/situacao", PriorityURL: "/admin/chamados/t1/prioridade", AssignURL: "/admin/chamados/t1/responsavel",
@@ -212,7 +220,10 @@ func main() {
 			[]string{"#000123 · acme", "Nota interna", "Cliente já estornado.", "Responder ao cliente", "Salvar nota", "/admin/chamados/t1/notas",
 				"/admin/chamados/t1/situacao", "/admin/chamados/t1/prioridade", "/admin/chamados/t1/responsavel", "ana@acme.test", "Solicitante", "Espaço"}, nil},
 		{ticket.ViewTeamShow, ticket.TeamShowPageData{Screen: sc, Ticket: row, Messages: messages, BackURL: "/admin/chamados"},
-			[]string{"#000123 · acme"}, []string{"Responder ao cliente", "Salvar nota", "Salvar"}},
+			[]string{"#000123 · acme"}, []string{"Responder ao cliente", "Salvar nota", "Salvar", "Visitante"}},
+		{ticket.ViewTeamShow, ticket.TeamShowPageData{Screen: sc, Ticket: visitorRow, Messages: messages[:1], BackURL: "/admin/chamados",
+			ReplyURL: "/admin/chamados/t2/respostas", CanReply: true},
+			[]string{"#000007 · Visitantes", "Visitante", "WhatsApp", "bia@example.test", "Responder ao cliente"}, []string{"visitors"}},
 	}
 
 	inline := regexp.MustCompile(` + "`" + `(?i)(<script|\sstyle=|\son[a-z]+=|javascript:)` + "`" + `)

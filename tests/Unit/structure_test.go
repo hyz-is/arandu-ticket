@@ -193,7 +193,7 @@ func TestThePackageUsesTheGeneratedConcreteModel(t *testing.T) {
 
 // TestTheGuidesTeachTheShapeOfThePackage keeps the local instructions teaching
 // what the package is: the generated query, the Service boundary, the two
-// sides, and the three places a Grant is issued without a customer.
+// sides, and the five places a Grant is issued without a customer.
 func TestTheGuidesTeachTheShapeOfThePackage(t *testing.T) {
 	t.Parallel()
 

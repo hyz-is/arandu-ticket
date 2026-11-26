@@ -22,7 +22,10 @@
         "note_title": "Internal note",
         "note_lead": "Only the team sees this note. The customer never receives it.",
         "internal_note": "Internal note",
-        "details": "Ticket details"
+        "details": "Ticket details",
+        "visitor_badge": "Visitor",
+        "visitor_space": "Visitors",
+        "visitors_link": "Visitor queue"
     },
     "control": {
         "back": "Back",
@@ -61,7 +64,8 @@
         "created_at": "Opened",
         "updated_at": "Updated",
         "name": "Name",
-        "sort": "Order"
+        "sort": "Order",
+        "thread": "Conversation"
     },
     "status": {
         "open": "Open",
@@ -79,7 +83,8 @@
     "origin": {
         "web": "Dashboard",
         "contact_form": "Contact form",
-        "email": "E-mail"
+        "email": "E-mail",
+        "whatsapp": "WhatsApp"
     },
     "role": {
         "customer": "Customer",
@@ -141,7 +146,8 @@
         "file_empty": "The file is empty.",
         "file_large": "Each file can be at most :max MB.",
         "file_type": "Send an image (PNG, JPG, GIF or WebP), a PDF or plain text.",
-        "multipart": "The upload could not be read. Try again with smaller files."
+        "multipart": "The upload could not be read. Try again with smaller files.",
+        "origin": "Invalid origin."
     },
     "activity": {
         "ticket_opened": "Ticket :code opened",
@@ -152,6 +158,11 @@
         "ticket_closed": "Ticket :code closed",
         "ticket_reopened": "Ticket :code reopened",
         "ticket_note_added": "Internal note on ticket :code",
-        "ticket_attachment_read": "Attachment of ticket :code downloaded"
+        "ticket_attachment_read": "Attachment of ticket :code downloaded",
+        "ticket_visitor_replied": "Visitor message on ticket :code",
+        "ticket_adopted": "Ticket :code linked to the account"
+    },
+    "message": {
+        "adopted": "This contact was linked to your account."
     }
 }

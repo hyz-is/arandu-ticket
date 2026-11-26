@@ -149,7 +149,7 @@ func (m *Module) teamIndexPage(sc Screen, who security.Subject, p params, page P
 	options := append(sc.assigneeChoices(who, people, Summary{}), components.SelectOption{Value: AssigneeNone, Label: sc.Labels.T("filter.unassigned")})
 	return TeamIndexPageData{
 		Screen: sc, Rows: rows, Query: p.search, Statuses: statuses, Priorities: priorities, Assignee: p.assignee, Space: p.space,
-		SortKey: p.sort, SortDir: p.dir, Hidden: p.hidden, URL: u.TeamIndex(),
+		SortKey: p.sort, SortDir: p.dir, Hidden: p.hidden, URL: u.TeamIndex(), VisitorsURL: u.TeamVisitors(),
 		Pager:       pager(len(rows), page.Total, m.cfg.PageSize, page.Page, u.TeamIndex(), listQueryValues(p)),
 		CurrentPage: page.Page, Pages: page.Pages, Total: page.Total, PerPage: m.cfg.PageSize,
 		StatusOptions: sc.StatusOptions(), PriorityOptions: sc.PriorityOptions(), AssigneeOptions: options,
