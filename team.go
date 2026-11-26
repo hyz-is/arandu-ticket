@@ -114,7 +114,7 @@ func (s *TeamService) List(ctx context.Context, actor security.Subject, q TeamQu
 	}
 	out := Page{Rows: make([]Summary, 0, len(found)), Total: int(total), Page: page, Pages: pagesOf(int(total), perPage)}
 	for _, t := range found {
-		out.Rows = append(out.Rows, summaryOfPlatform(t))
+		out.Rows = append(out.Rows, s.mark(summaryOfPlatform(t)))
 	}
 	return out, nil
 }

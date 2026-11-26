@@ -25,6 +25,9 @@ type ShowData = ticket.TeamShowPageData
 			<h1 class="text-2xl font-semibold tracking-tight break-words">{{ .Ticket.Subject }}</h1>
 		</div>
 		<div class="flex flex-wrap gap-2">
+			@if(.Ticket.Visitor)
+				{!! components.Badge(components.BadgeProps{Label: .Labels.T("screen.visitor_badge"), Variant: "outline"}) !!}
+			@endif
 			{!! components.Badge(components.BadgeProps{Label: .Ticket.Priority, Variant: ticket.PriorityVariant(.Ticket.PriorityKey)}) !!}
 			{!! components.Badge(components.BadgeProps{Label: .Ticket.Status, Variant: ticket.StatusVariant(.Ticket.StatusKey)}) !!}
 		</div>

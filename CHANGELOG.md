@@ -10,8 +10,63 @@ a release is corrected by another release and never by moving a tag.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-26
+
+### Added
+
+- Tickets for people with no account. `Config.VisitorTenant` names the
+  visitors' queue, a tenant of its own that no customer's subject belongs to,
+  and `TicketService.OpenFromVisitor` opens a ticket in it from the application's
+  contact form, a received e-mail or a WhatsApp conversation
+  (`VisitorInput`, `VisitorResult`). The team reads and answers it as any other
+  space's ticket, and its answer reaches the Notifier as `EventTeamReplied` with
+  the visitor's e-mail as the requester's. Without a tenant the call answers
+  `ErrVisitorsOff` and nothing is read.
+- Conversations: a `VisitorInput.Thread` (a WhatsApp number, a mail thread) makes
+  the next message of the same conversation join the ticket that is not closed
+  (`VisitorResult.Appended`) instead of opening another, and the same words
+  twice inside `Config.ContactWindow` are a repeat (`Duplicate`). The thread is
+  kept only as a digest.
+- `TicketService.AdoptVisitorTickets` moves the visitors' tickets whose
+  requester e-mail is a proven account's into that account's space, with a new
+  number, their messages and the team's triage, and a line the customer reads
+  saying the contact was linked to the account. A ticket that carries a file
+  stays in the queue and is counted in the log. Calling it twice moves nothing
+  the second time.
+- Two actions no person holds, `TicketOpenFromVisitor` and `TicketAdopt`, and
+  the two `Grant`s that exercise them, built in `grants.go` beside the
+  existing ones. Two events, `ticket.visitor_replied` and `ticket.adopted`;
+  a visitor's entries have the system as their causer, and the adoption's has
+  the account.
+- `OriginWhatsApp`, and `OpenRequest.Origin`, so an application that opens a
+  ticket for a signed-in customer from its own channel (an assistant on
+  WhatsApp acting as the person) says which channel it was. The screens still
+  open `OriginWeb`, and `OriginContactForm` is refused there.
+- The team's list marks a visitor's ticket with a badge, `Summary.Visitor` and
+  `visitor` in the team's JSON say so, and `URLs.TeamVisitors` and
+  `TeamIndexPageData.VisitorsURL` link to the list narrowed to the queue. The
+  published team views (`admin/index`, `admin/show`) draw the badge and the
+  link: republish them with `aru vendor:publish --tag=view --apply`.
+- Catalogue lines in `en` and `pt-BR`: `screen.visitor_badge`,
+  `screen.visitor_space`, `screen.visitors_link`, `field.thread`,
+  `origin.whatsapp`, `validation.origin`, `message.adopted` and the two activity
+  descriptions.
+
 ### Changed
 
+- `OpenFromContact` and `OpenFromVisitor` validate the subject and the body
+  with the same rules, and the answers of the team's status, priority and
+  assignee changes carry `visitor` too. Nothing a caller wrote before changes.
+
+## [0.2.1] - 2026-11-15
+
+### Changed
+
+- Requires Hesape v0.109.0, Framework v0.71.0 and Kyse v0.53.1.
+
+## [0.2.0] - 2026-11-15
+
+### Changed
 - The customer's and the team's lists are drawn with Kyse's server-side data
   table: the views hand it a `State` (`IndexPageData.TableState` and
   `TeamIndexPageData.TableState`) instead of a query, a sort and the chosen

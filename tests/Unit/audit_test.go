@@ -144,10 +144,14 @@ var services = map[string]bool{"TicketService": true, "TeamService": true}
 
 // deciders are what a use case may ask before it reaches the Model, and each is
 // either security.Authorize itself or a helper that is checked below to call
-// it, or to issue the one Grant that needs no Policy.
+// it, or to issue one of the Grants that need no Policy.
 var deciders = map[string]bool{
-	"Authorize": true, "authorizeView": true, "reach": true, "contactGrant": true,
+	"Authorize": true, "authorizeView": true, "reach": true, "contactGrant": true, "visitorGrant": true, "adoptGrant": true,
 }
+
+// systemDeciders are the deciders that issue a Grant with no Policy: they are
+// held to grants.go instead of to a call of security.Authorize.
+var systemDeciders = map[string]bool{"contactGrant": true, "visitorGrant": true, "adoptGrant": true}
 
 // modelReaches are the calls through which a use case first touches data: the
 // generated queries, the write terminals, and the helpers of core that run
@@ -156,6 +160,7 @@ var modelReaches = map[string]bool{
 	"Tickets": true, "Messages": true, "Attachments": true, "Counters": true,
 	"Save": true, "Delete": true, "Restore": true, "Touch": true,
 	"create": true, "add": true, "conversation": true, "open": true, "putFiles": true,
+	"receive": true, "adopt": true, "move": true,
 }
 
 // TestEveryServiceMethodAuthorizesBeforeTheModel holds the mandatory path on
@@ -195,8 +200,9 @@ func TestEveryServiceMethodAuthorizesBeforeTheModel(t *testing.T) {
 }
 
 // TestTheHelpersThatDecideActuallyDecide holds the helpers the audit above
-// trusts: each calls security.Authorize, except the one that issues the contact
-// form's Grant, which is held to grants.go below.
+// trusts: each calls security.Authorize, except the ones that issue a Grant with
+// no Policy -- the contact form's, the visitors' and the adoption's -- which are
+// held to grants.go below.
 func TestTheHelpersThatDecideActuallyDecide(t *testing.T) {
 	t.Parallel()
 
@@ -208,10 +214,10 @@ func TestTheHelpersThatDecideActuallyDecide(t *testing.T) {
 				continue
 			}
 			found[function.Name.Name] = true
-			switch function.Name.Name {
-			case "contactGrant":
+			switch {
+			case systemDeciders[function.Name.Name]:
 				if source.path != "grants.go" {
-					t.Errorf("%s: contactGrant lives outside grants.go", source.path)
+					t.Errorf("%s: %s lives outside grants.go", source.path, function.Name.Name)
 				}
 			default:
 				if firstCallTo(function.Body, "Authorize") == token.NoPos {
@@ -337,9 +343,9 @@ func TestTheTenantIsWrittenOnlyFromTheGrant(t *testing.T) {
 	}
 }
 
-// TestAGrantWithoutACustomerIsIssuedInGrantsGoAlone holds the three places a
+// TestAGrantWithoutACustomerIsIssuedInGrantsGoAlone holds the five places a
 // Grant is built without a Policy answering for it to one file, and each of
-// them to a comment that says what decided first. A fourth place is a decision
+// them to a comment that says what decided first. A sixth place is a decision
 // to take in review, not a line to find in a diff.
 func TestAGrantWithoutACustomerIsIssuedInGrantsGoAlone(t *testing.T) {
 	t.Parallel()
@@ -359,20 +365,20 @@ func TestAGrantWithoutACustomerIsIssuedInGrantsGoAlone(t *testing.T) {
 			return true
 		})
 	}
-	if calls != 3 {
-		t.Errorf("grants.go issues %d system Grants, want the three it documents", calls)
+	if calls != 5 {
+		t.Errorf("grants.go issues %d system Grants, want the five it documents", calls)
 	}
 
 	body, err := os.ReadFile(filepath.Join(root, "grants.go"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := strings.Count(string(body), "//arandu:system-grant "); got != 3 {
-		t.Errorf("grants.go marks %d system Grants with //arandu:system-grant and a reason, want 3", got)
+	if got := strings.Count(string(body), "//arandu:system-grant "); got != 5 {
+		t.Errorf("grants.go marks %d system Grants with //arandu:system-grant and a reason, want 5", got)
 	}
 	// A scoped Grant is checked against the realm Grant it comes from, and
 	// every one is for a tenant that can be one.
-	if !strings.Contains(string(body), "realm.Check(a)") || strings.Count(string(body), "security.ValidTenant(tenant)") < 3 {
+	if !strings.Contains(string(body), "realm.Check(a)") || strings.Count(string(body), "security.ValidTenant(tenant)") < 5 {
 		t.Error("grants.go does not check the realm Grant and the tenant before it issues a Grant")
 	}
 }

@@ -32,6 +32,13 @@ const (
 	ActivityTicketReopened        = "ticket.reopened"
 	ActivityTicketNoteAdded       = "ticket.note_added"
 	ActivityAttachmentRead        = "ticket.attachment_read"
+	// ActivityTicketVisitorReplied is a visitor's message added to the open
+	// ticket of the same thread, in the visitors' queue.
+	ActivityTicketVisitorReplied = "ticket.visitor_replied"
+	// ActivityTicketAdopted is a visitor's ticket moved into the space of the
+	// account that proved it owns the e-mail. It is written in that space, with
+	// the account as its causer.
+	ActivityTicketAdopted = "ticket.adopted"
 )
 
 // record writes one entry of the act just done, under the Grant it was
@@ -67,7 +74,7 @@ func (c *core) notify(ctx context.Context, kind EventKind, t Summary, m MessageV
 	if c.cfg.Notifier == nil || m.Internal {
 		return
 	}
-	if err := c.cfg.Notifier.Notify(ctx, Event{Kind: kind, Ticket: t, Message: m}); err != nil {
+	if err := c.cfg.Notifier.Notify(ctx, Event{Kind: kind, Ticket: c.mark(t), Message: m}); err != nil {
 		c.cfg.Logger.Warn("ticket: the notifier failed after the change was stored", "event", string(kind), "ticket", t.ID, "error", err)
 	}
 }

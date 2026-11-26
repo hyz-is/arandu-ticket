@@ -22,7 +22,10 @@
         "note_title": "Nota interna",
         "note_lead": "Só a equipe vê esta nota. O cliente nunca a recebe.",
         "internal_note": "Nota interna",
-        "details": "Detalhes do chamado"
+        "details": "Detalhes do chamado",
+        "visitor_badge": "Visitante",
+        "visitor_space": "Visitantes",
+        "visitors_link": "Fila de visitantes"
     },
     "control": {
         "back": "Voltar",
@@ -61,7 +64,8 @@
         "created_at": "Aberto em",
         "updated_at": "Atualizado em",
         "name": "Nome",
-        "sort": "Ordenação"
+        "sort": "Ordenação",
+        "thread": "Conversa"
     },
     "status": {
         "open": "Aberto",
@@ -79,7 +83,8 @@
     "origin": {
         "web": "Painel",
         "contact_form": "Formulário de contato",
-        "email": "E-mail"
+        "email": "E-mail",
+        "whatsapp": "WhatsApp"
     },
     "role": {
         "customer": "Cliente",
@@ -141,7 +146,8 @@
         "file_empty": "O arquivo está vazio.",
         "file_large": "Cada arquivo pode ter no máximo :max MB.",
         "file_type": "Envie imagem (PNG, JPG, GIF ou WebP), PDF ou texto simples.",
-        "multipart": "Não foi possível ler o envio. Tente de novo com arquivos menores."
+        "multipart": "Não foi possível ler o envio. Tente de novo com arquivos menores.",
+        "origin": "Origem inválida."
     },
     "activity": {
         "ticket_opened": "Chamado :code aberto",
@@ -152,6 +158,11 @@
         "ticket_closed": "Chamado :code encerrado",
         "ticket_reopened": "Chamado :code reaberto",
         "ticket_note_added": "Nota interna no chamado :code",
-        "ticket_attachment_read": "Anexo do chamado :code baixado"
+        "ticket_attachment_read": "Anexo do chamado :code baixado",
+        "ticket_visitor_replied": "Mensagem de visitante no chamado :code",
+        "ticket_adopted": "Chamado :code ligado à conta"
+    },
+    "message": {
+        "adopted": "Este contato foi ligado à sua conta."
     }
 }

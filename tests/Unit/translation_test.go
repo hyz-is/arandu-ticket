@@ -130,7 +130,7 @@ func TestEverySentenceTheCodeAsksForIsInTheCatalogueAndNoneIsLeftOver(t *testing
 			t.Errorf("no sentence for the priority %s", priority)
 		}
 	}
-	for _, origin := range []ticket.Origin{ticket.OriginWeb, ticket.OriginContactForm, ticket.OriginEmail} {
+	for _, origin := range []ticket.Origin{ticket.OriginWeb, ticket.OriginContactForm, ticket.OriginEmail, ticket.OriginWhatsApp} {
 		if _, ok := english["ticket.origin."+string(origin)]; !ok {
 			t.Errorf("no sentence for the origin %s", origin)
 		}
@@ -143,7 +143,7 @@ func TestEverySentenceTheCodeAsksForIsInTheCatalogueAndNoneIsLeftOver(t *testing
 	for _, event := range []string{
 		ticket.ActivityTicketOpened, ticket.ActivityTicketReplied, ticket.ActivityTicketStatusChanged, ticket.ActivityTicketPriorityChanged,
 		ticket.ActivityTicketAssigned, ticket.ActivityTicketClosed, ticket.ActivityTicketReopened, ticket.ActivityTicketNoteAdded,
-		ticket.ActivityAttachmentRead,
+		ticket.ActivityAttachmentRead, ticket.ActivityTicketVisitorReplied, ticket.ActivityTicketAdopted,
 	} {
 		key := "ticket.activity." + strings.ReplaceAll(event, ".", "_")
 		line, ok := english[key]

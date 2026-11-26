@@ -282,7 +282,7 @@ func (m *Module) teamStatus(ctx *fhttp.Context) error {
 		return err
 	}
 	if ctx.WantsJSON() {
-		return ctx.JSON(stdhttp.StatusOK, fieldsResource(teamFields(summaryOf(record))))
+		return ctx.JSON(stdhttp.StatusOK, fieldsResource(teamFields(m.team.mark(summaryOf(record)))))
 	}
 	return ctx.Redirect(m.URLs().TeamShow(record.ID))
 }
@@ -295,7 +295,7 @@ func (m *Module) teamPriority(ctx *fhttp.Context) error {
 		return err
 	}
 	if ctx.WantsJSON() {
-		return ctx.JSON(stdhttp.StatusOK, fieldsResource(teamFields(summaryOf(record))))
+		return ctx.JSON(stdhttp.StatusOK, fieldsResource(teamFields(m.team.mark(summaryOf(record)))))
 	}
 	return ctx.Redirect(m.URLs().TeamShow(record.ID))
 }
@@ -308,7 +308,7 @@ func (m *Module) teamAssign(ctx *fhttp.Context) error {
 		return err
 	}
 	if ctx.WantsJSON() {
-		return ctx.JSON(stdhttp.StatusOK, fieldsResource(teamFields(summaryOf(record))))
+		return ctx.JSON(stdhttp.StatusOK, fieldsResource(teamFields(m.team.mark(summaryOf(record)))))
 	}
 	return ctx.Redirect(m.URLs().TeamShow(record.ID))
 }

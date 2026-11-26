@@ -41,20 +41,8 @@ func (s *TicketService) OpenFromContact(ctx context.Context, in ContactInput) (C
 	if _, err := mail.ParseAddress(email); err != nil || email == "" || utf8.RuneCountInString(email) > maxEmailLen {
 		errs.Add("email", s.labels.message("email"))
 	}
-	subject := trimmed(in.Subject)
-	switch {
-	case subject == "":
-		errs.Add("subject", s.labels.message("required"))
-	case utf8.RuneCountInString(subject) > maxSubjectLen:
-		errs.Add("subject", s.labels.message("max", map[string]any{"max": maxSubjectLen}))
-	}
-	body := trimmed(in.Body)
-	switch {
-	case body == "":
-		errs.Add("body", s.labels.message("required"))
-	case utf8.RuneCountInString(body) > MaxBodyChars:
-		errs.Add("body", s.labels.message("max", map[string]any{"max": MaxBodyChars}))
-	}
+	subject, body := trimmed(in.Subject), trimmed(in.Body)
+	s.validateWords(errs, subject, body)
 	if errs.Any() {
 		return ContactResult{}, errs
 	}

@@ -104,10 +104,16 @@ const (
 	OriginContactForm Origin = "contact_form"
 	// OriginEmail is a ticket the application opened from an incoming e-mail.
 	OriginEmail Origin = "email"
+	// OriginWhatsApp is a ticket the application opened from a WhatsApp
+	// conversation: for a signed-in customer through OpenRequest.Origin, for
+	// somebody with no account through OpenFromVisitor.
+	OriginWhatsApp Origin = "whatsapp"
 )
 
-// Valid reports whether the origin is one of the three.
-func (o Origin) Valid() bool { return o == OriginWeb || o == OriginContactForm || o == OriginEmail }
+// Valid reports whether the origin is one of the four.
+func (o Origin) Valid() bool {
+	return o == OriginWeb || o == OriginContactForm || o == OriginEmail || o == OriginWhatsApp
+}
 
 // Role is what an author of a message is to the ticket.
 type Role string
@@ -223,8 +229,11 @@ type Ticket struct {
 	// Origin is where the ticket came from.
 	Origin Origin `db:"origin"`
 
-	// OriginKey identifies a ticket opened from a contact form by what it said,
-	// so the same form sent twice opens it once. Empty for every other origin.
+	// OriginKey identifies a ticket opened from a contact form, or by a
+	// visitor, by what it said, so the same form sent twice opens it once. For
+	// a visitor's ticket opened with a VisitorInput.Thread it is the digest of
+	// the thread instead, which is how the next message of the same
+	// conversation finds the ticket. Empty for every other origin.
 	OriginKey string `db:"origin_key"`
 
 	// LastMessageAt is when the last message the customer can read was written.
@@ -521,6 +530,9 @@ type Summary struct {
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	ClosedAt       *time.Time
+	// Visitor says the ticket is in Config.VisitorTenant: somebody with no
+	// account opened it, and only the team reads it.
+	Visitor bool
 }
 
 // Code is the number as people say it: "#000123".
@@ -646,10 +658,11 @@ func customerFields(s Summary) map[string]any {
 
 // teamFields are the fields a ticket answers the team with: the tenant too,
 // because the team reads every tenant's tickets and the number alone does not
-// say whose.
+// say whose, and whether it is a visitor's.
 func teamFields(s Summary) map[string]any {
 	out := summaryFields(s)
 	out["tenant"] = s.Tenant
+	out["visitor"] = s.Visitor
 	return out
 }
 

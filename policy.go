@@ -48,6 +48,18 @@ const (
 	// for the account an e-mail belongs to. It is not a subject's action: no
 	// person holds it, and OpenFromContact is the only place that issues it.
 	TicketOpenFromContact security.Action = "ticket.open_from_contact"
+
+	// TicketOpenFromVisitor is the application opening a ticket, or adding to
+	// one, in the visitors' queue for somebody with no account. It is not a
+	// subject's action: no person holds it, and OpenFromVisitor is the only
+	// place that issues it.
+	TicketOpenFromVisitor security.Action = "ticket.open_from_visitor"
+
+	// TicketAdopt is the application moving a visitor's tickets into the space
+	// of the account that proved it owns their e-mail. It is not a subject's
+	// action: no person holds it, and AdoptVisitorTickets is the only place
+	// that issues it.
+	TicketAdopt security.Action = "ticket.adopt"
 )
 
 // Actions are the customer's actions, for an application to declare in

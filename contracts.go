@@ -115,14 +115,22 @@ type Upload struct {
 	Body io.Reader
 }
 
-// OpenRequest is what a customer asks for when opening a ticket on the screens.
-// There is no tenant, no requester and no priority here and there must never
-// be one: the tenant and the requester come from the Grant and the subject, and
-// the priority is the team's to set.
+// OpenRequest is what a signed-in customer asks for when opening a ticket, on
+// the screens or through another channel of the application. There is no
+// tenant, no requester and no priority here and there must never be one: the
+// tenant and the requester come from the Grant and the subject, and the
+// priority is the team's to set.
 type OpenRequest struct {
 	Subject  string
 	Category string
 	Body     string
+	// Origin is the channel the customer opened the ticket through. Empty is
+	// OriginWeb; OriginWhatsApp and OriginEmail are for an application that
+	// opens the ticket for the signed-in subject from its own channel -- an
+	// assistant on WhatsApp acting as the person. OriginContactForm is refused:
+	// it is OpenFromContact's. The package's own form never fills it, so a
+	// ticket opened on the screens is always OriginWeb.
+	Origin Origin
 }
 
 // ReplyRequest is a message added to a ticket.
@@ -150,6 +158,45 @@ type ContactResult struct {
 	// Duplicate says the same e-mail, subject and body had already opened a
 	// ticket inside Config.ContactWindow, and nothing new was written.
 	Duplicate bool
+}
+
+// ErrVisitorsOff is what OpenFromVisitor and AdoptVisitorTickets answer when
+// Config.VisitorTenant is empty: the application did not turn visitors on, so
+// there is no queue to write to or to adopt from.
+var ErrVisitorsOff = errors.New("ticket: visitors are off: Config.VisitorTenant is empty")
+
+// VisitorInput is what somebody with no account said, through the
+// application's contact form, an e-mail or a WhatsApp conversation.
+type VisitorInput struct {
+	// Name is what the sender called themselves.
+	Name string
+	// Email is the address the sender gave. Required for OriginContactForm and
+	// OriginEmail; optional for OriginWhatsApp, where Name or Email is.
+	Email   string
+	Subject string
+	Body    string
+	// Origin is the channel. Empty is OriginContactForm; OriginEmail and
+	// OriginWhatsApp are accepted too, OriginWeb is not.
+	Origin Origin
+	// Thread is the conversation the message belongs to on its channel, in the
+	// channel's own words: a WhatsApp number, a mail thread's identifier. When
+	// a ticket of the same origin and thread is not closed, the message is
+	// added to it instead of opening another. It is kept only as a digest.
+	// Required for OriginWhatsApp when there is no Email.
+	Thread string
+}
+
+// VisitorResult is what OpenFromVisitor answers.
+type VisitorResult struct {
+	// Ticket is the ticket the message opened, the one it was added to, or the
+	// one a repeat found.
+	Ticket *Ticket
+	// Duplicate says the same words had already been received inside
+	// Config.ContactWindow, and nothing new was written.
+	Duplicate bool
+	// Appended says the message went to a ticket of the same Thread that was
+	// already open, rather than opening one.
+	Appended bool
 }
 
 // ListQuery narrows the customer's list. Page counts from one.
