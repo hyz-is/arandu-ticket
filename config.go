@@ -119,8 +119,15 @@ type Config struct {
 	// request. A guard of the application's own side -- the operator console's
 	// -- goes in TeamMiddleware. A guard answers "is this request on the right
 	// side" and stops; the policy still decides.
-	Middleware     []func(http.Handler) http.Handler
-	TeamMiddleware []func(http.Handler) http.Handler
+	//
+	// CustomerMiddleware is the customer's side alone, as TeamMiddleware is the
+	// team's: an application whose customer routes need a guard the team's must
+	// not carry (scoping the request to the customer's organization) passes it
+	// here, and keeps Middleware for what both sides share. The order on a
+	// customer route is Middleware, then CustomerMiddleware.
+	Middleware         []func(http.Handler) http.Handler
+	CustomerMiddleware []func(http.Handler) http.Handler
+	TeamMiddleware     []func(http.Handler) http.Handler
 
 	// Accounts resolves an e-mail to an account, for OpenFromContact. Nil makes
 	// OpenFromContact refuse: there is no account to open for.

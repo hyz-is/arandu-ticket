@@ -10,6 +10,33 @@ a release is corrected by another release and never by moving a tag.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-26
+
+### Added
+
+- The team's list can be narrowed to the channel a ticket came in by:
+  `TeamQuery.Origins`, the `origin` parameter of the list, a filter and a
+  switchable column of the data table, `TeamIndexPageData.Origins` and
+  `OriginOptions`, and `Screen.OriginOptions`. `Origins` lists the four channels
+  (`web`, `contact_form`, `email`, `whatsapp`), and `origin` is a sort key too.
+  The origin was already stored on every ticket; an application that wants its
+  own words for the channels ("Painel", "Site") overrides `origin.web` and
+  `origin.contact_form` in its catalogue, and the values stay. An origin that is
+  none of the four is refused with the `origin` message.
+- `Config.CustomerMiddleware`, the customer's side alone as `TeamMiddleware` is
+  the team's. The order on a customer route is `Middleware`, then
+  `CustomerMiddleware`; on a team route, `Middleware`, then `TeamMiddleware`.
+  `Middleware` keeps running on both, as before.
+- `teamdir`, a package of this module with a `ticket.Directory` that makes the
+  platform team the members of an arandu-permission group: `teamdir.New` takes
+  the permission service, the realm, the group's slug and a `Names` lookup, and
+  every member of the group can be given a ticket and shows by name. The module's
+  root imports nothing new; the module requires arandu-permission v0.13.3 for
+  this package alone.
+- The list's `space` parameter (the visitors' queue filter) now travels with the pager and
+  every address of the table (it was carried by the table's state only).
+
+
 ## [0.3.0] - 2026-11-26
 
 ### Added

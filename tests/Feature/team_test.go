@@ -389,3 +389,50 @@ func TestTheTeamsAnswerTellsTheCustomerAndAFailingNotifierChangesNothing(t *test
 		t.Fatalf("the log of the process holds %q", logged)
 	}
 }
+
+func TestTheTeamsListIsNarrowedByTheChannelTheTicketCameIn(t *testing.T) {
+	t.Parallel()
+	w := installWith(t, withVisitors)
+	ctx := context.Background()
+	rita := agent("team-1")
+	ana := member("acme", "user-ana")
+
+	if _, err := w.tickets.Open(ctx, ana, ticket.OpenRequest{Subject: "pelo painel", Body: "x"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.tickets.Open(ctx, ana, ticket.OpenRequest{Subject: "pelo whatsapp", Body: "x", Origin: ticket.OriginWhatsApp}, nil); err != nil {
+		t.Fatal(err)
+	}
+	visit(t, w, ticket.VisitorInput{Email: "bia@example.test", Subject: "pelo site", Body: "Quero saber o preço."})
+
+	subjects := func(origins ...ticket.Origin) string {
+		page, err := w.team.List(ctx, rita, ticket.TeamQuery{Origins: origins, Sort: "number", Dir: "asc"})
+		if err != nil {
+			t.Fatalf("listing %v: %v", origins, err)
+		}
+		var out []string
+		for _, row := range page.Rows {
+			out = append(out, row.Subject+"/"+string(row.Origin))
+		}
+		return strings.Join(out, ",")
+	}
+	if got := subjects(); strings.Count(got, ",") != 2 {
+		t.Fatalf("with no filter the list holds %q, want the three tickets", got)
+	}
+	if got := subjects(ticket.OriginWhatsApp); got != "pelo whatsapp/whatsapp" {
+		t.Errorf("WhatsApp holds %q", got)
+	}
+	if got := subjects(ticket.OriginWeb); got != "pelo painel/web" {
+		t.Errorf("the panel holds %q", got)
+	}
+	if got := subjects(ticket.OriginContactForm); got != "pelo site/contact_form" {
+		t.Errorf("the site holds %q", got)
+	}
+	if got := subjects(ticket.OriginWeb, ticket.OriginWhatsApp); strings.Count(got, ",") != 1 {
+		t.Errorf("two channels hold %q", got)
+	}
+	var errs validation.Errors
+	if _, err := w.team.List(ctx, rita, ticket.TeamQuery{Origins: []ticket.Origin{"fax"}}); !errors.As(err, &errs) || len(errs["origin"]) == 0 {
+		t.Errorf("a channel that is none answered %v", err)
+	}
+}

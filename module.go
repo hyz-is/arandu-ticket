@@ -159,10 +159,12 @@ func (m *Module) register(r *fhttp.Router, team bool) {
 	for _, mw := range m.cfg.Middleware {
 		guards = append(guards, mw)
 	}
+	side := m.cfg.CustomerMiddleware
 	if team {
-		for _, mw := range m.cfg.TeamMiddleware {
-			guards = append(guards, mw)
-		}
+		side = m.cfg.TeamMiddleware
+	}
+	for _, mw := range side {
+		guards = append(guards, mw)
 	}
 	r = r.Group("", guards...)
 	handlers := m.handlers()

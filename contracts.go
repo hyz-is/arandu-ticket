@@ -219,6 +219,10 @@ type TeamQuery struct {
 	// Assignee is a team member's identifier, AssigneeNone for the tickets
 	// nobody took, or empty for every ticket.
 	Assignee string
+	// Origins narrows the list to the tickets that came in by these channels
+	// (OriginWeb, OriginContactForm, OriginEmail, OriginWhatsApp); empty is every
+	// channel.
+	Origins []Origin
 	// Tenant narrows the list to one space.
 	Tenant  string
 	Sort    string
